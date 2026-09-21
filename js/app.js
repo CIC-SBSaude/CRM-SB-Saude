@@ -47,6 +47,224 @@
     }
   }
 
+  // Sincronização e Realtime com Supabase Local (Docker 127.0.0.1:56322)
+  async function syncSupabaseData() {
+    if (!window.crmSupabase) return;
+    const connected = await window.crmSupabase.checkConnection();
+    if (!connected) return;
+
+    try {
+      const [proposals, companies, coparts, brokers, users] = await Promise.all([
+        window.crmSupabase.fetchProposals(),
+        window.crmSupabase.fetchCompanies(),
+        window.crmSupabase.fetchCopartPolicies(),
+        window.crmSupabase.fetchBrokers(),
+        window.crmSupabase.fetchUsers()
+      ]);
+
+      let updated = false;
+      if (Array.isArray(proposals) && proposals.length > 0) {
+        appData.proposals = proposals;
+        updated = true;
+      }
+      if (Array.isArray(companies) && companies.length > 0) {
+        appData.companies = companies;
+        updated = true;
+      }
+      if (Array.isArray(coparts) && coparts.length > 0) {
+        appData.coparticipationPolicies = coparts;
+        updated = true;
+      }
+      if (Array.isArray(brokers) && brokers.length > 0) {
+        appData.brokers = brokers;
+        updated = true;
+      }
+
+      // Sincronizar Usuários com o Banco Supabase
+      const localUsers = getAdminUsers();
+      if (Array.isArray(users) && users.length > 0) {
+        const mergedMap = new Map();
+        localUsers.forEach(u => mergedMap.set(u.login.toUpperCase(), { ...u }));
+        users.forEach(u => mergedMap.set(u.login.toUpperCase(), { ...u }));
+        const merged = Array.from(mergedMap.values());
+        localStorage.setItem('crm_admin_users', JSON.stringify(merged));
+        syncUserSwitch(merged);
+        // Garantir que todos os usuários locais constem no Supabase
+        for (const u of merged) {
+          window.crmSupabase.saveUser(u);
+        }
+      } else if (localUsers.length > 0) {
+        for (const u of localUsers) {
+          window.crmSupabase.saveUser(u);
+        }
+      }
+
+      if (updated) {
+        saveDataStore();
+        if (typeof renderView === 'function') {
+          renderView();
+        }
+      }
+
+      // Configuração Realtime
+      window.crmSupabase.setupRealtime({
+        onProposalChange: (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newP = payload.new;
+            if (!appData.proposals.some(p => String(p.ID) === String(newP.id))) {
+              appData.proposals.unshift({
+                _RowNumber: newP.row_number,
+                ID: newP.id,
+                DATA_DA_PROSPECCAO: newP.data_da_prospeccao,
+                EMPRESA: newP.empresa,
+                CNPJ: newP.cnpj,
+                COMPETENCIA: newP.competencia,
+                VIDAS: newP.vidas,
+                CIDADE: newP.cidade,
+                UF: newP.uf,
+                TKM: newP.tkm,
+                FATURAMENTO: newP.faturamento,
+                ACOMODACAO: newP.acomodacao,
+                FATOR_MODERADOR: newP.fator_moderador,
+                POLITICA_COPARTICIPACAO: newP.politica_coparticipacao,
+                CORRETORES_1: newP.corretores_1,
+                CORRETORES_2: newP.corretores_2,
+                CORRETORES_3: newP.corretores_3,
+                AGENCIAMENTO_1: newP.agenciamento_1,
+                AGENCIAMENTO_2: newP.agenciamento_2,
+                AGENCIAMENTO_3: newP.agenciamento_3,
+                VITALICIO_1: newP.vitalicio_1,
+                VITALICIO_2: newP.vitalicio_2,
+                VITALICIO_3: newP.vitalicio_3,
+                PLANO_CAMPANHA: newP.plano_campanha,
+                Status_Campanha: newP.status_campanha,
+                TEMPERATURA_CONTRATO: newP.temperatura_contrato,
+                Usuario: newP.usuario,
+                Data_Inclusao: newP.data_inclusao,
+                Hora_Inclusao: newP.hora_inclusao,
+                Aptidao: newP.aptidao,
+                Tipo_Contrato: newP.tipo_contrato,
+                Qnt_Faixa_Etaria: newP.qnt_faixa_etaria,
+                Faixa_Etaria: newP.faixa_etaria,
+                Data_Analise_tecnica: newP.data_analise_tecnica,
+                Data_Avaliacao_Diretoria: newP.data_avaliacao_diretoria,
+                Data_Envio_Corretor: newP.data_envio_corretor,
+                Motivo_Declinio: newP.motivo_declinio,
+                Observacao: newP.observacao,
+                Conversao_Solus: newP.conversao_solus,
+                Status_Contrato: newP.status_contrato,
+                Plataforma: newP.plataforma
+              });
+              saveDataStore();
+              if (typeof renderView === 'function') renderView();
+              showToast(`Nova cotação #PRP-${newP.id} sincronizada do Supabase!`, 'success');
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const newP = payload.new;
+            const idx = appData.proposals.findIndex(p => String(p.ID) === String(newP.id));
+            if (idx !== -1) {
+              appData.proposals[idx].TEMPERATURA_CONTRATO = newP.temperatura_contrato;
+              appData.proposals[idx].Aptidao = newP.aptidao;
+              appData.proposals[idx].FATURAMENTO = newP.faturamento;
+              appData.proposals[idx].EMPRESA = newP.empresa;
+              saveDataStore();
+              if (typeof renderView === 'function') renderView();
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const delId = payload.old?.id;
+            if (delId) {
+              appData.proposals = appData.proposals.filter(p => String(p.ID) !== String(delId));
+              saveDataStore();
+              if (typeof renderView === 'function') renderView();
+            }
+          }
+        },
+        onCompanyChange: (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const c = payload.new;
+            const idx = appData.companies.findIndex(item => item.EMPRESA.toLowerCase() === (c.empresa || '').toLowerCase());
+            if (idx !== -1) {
+              appData.companies[idx].CNPJ = c.cnpj;
+              appData.companies[idx].UF = c.uf;
+              appData.companies[idx].PLANO_CAMPANHA = c.plano_campanha;
+            } else {
+              appData.companies.push({ EMPRESA: c.empresa, CNPJ: c.cnpj, UF: c.uf });
+            }
+            saveDataStore();
+            if (state.currentTab === 'companies' && typeof renderView === 'function') renderView();
+          }
+        },
+        onCopartChange: (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const p = payload.new;
+            const idx = appData.coparticipationPolicies.findIndex(item => (item['Politica Coparticipacao'] || '').toLowerCase() === (p.nome_politica || '').toLowerCase());
+            const mapped = {
+              'ID Politica': p.id_politica,
+              'Politica Coparticipacao': p.nome_politica,
+              'Percentual Desconto Evento': p.percentual_desconto_evento,
+              'Qnt Partida Evento': p.qnt_partida_evento,
+              'Valor Consulta Eletiva': p.valor_consulta_eletiva,
+              'Valor Consulta Emergencia': p.valor_consulta_emergencia,
+              'Valor Exames Simples': p.valor_exames_simples,
+              'Valor Exames Complexos': p.valor_exames_complexos,
+              'Valor Terapia': p.valor_terapia,
+              'Imagem': p.imagem,
+              'Terapia': p.terapia
+            };
+            if (idx !== -1) {
+              appData.coparticipationPolicies[idx] = { ...appData.coparticipationPolicies[idx], ...mapped };
+            } else {
+              appData.coparticipationPolicies.push(mapped);
+            }
+            saveDataStore();
+            if (state.currentTab === 'policies' && typeof renderView === 'function') renderView();
+          }
+        },
+        onUserChange: (payload) => {
+          const usersList = getAdminUsers();
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const u = payload.new;
+            const mapped = {
+              id: u.user_code || ('USR-' + String(u.id).padStart(3, '0')),
+              login: u.username,
+              name: u.name || u.username,
+              email: u.email || `${u.username.toLowerCase()}@sbsaude.com.br`,
+              role: u.role || 'Consultor Comercial',
+              profile: u.profile || 'Consultor Comercial',
+              status: u.status || 'Ativo',
+              password: u.password_hash || 'SbSaude@2026',
+              twoFactor: u.two_factor ?? true,
+              lastLogin: u.last_login || 'Primeiro acesso pendente',
+              ip: u.ip || '192.168.10.1',
+              avatar: u.avatar || (u.name ? u.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : u.username.slice(0, 2)),
+              createdAt: u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '21/09/2026'
+            };
+            const idx = usersList.findIndex(item => item.login.toUpperCase() === mapped.login.toUpperCase());
+            if (idx !== -1) {
+              usersList[idx] = { ...usersList[idx], ...mapped };
+            } else {
+              usersList.push(mapped);
+            }
+            localStorage.setItem('crm_admin_users', JSON.stringify(usersList));
+            syncUserSwitch(usersList);
+            if (state.currentTab === 'admin' && typeof renderView === 'function') renderView();
+            showToast(`Usuário ${mapped.login} sincronizado do Supabase!`, 'success');
+          } else if (payload.eventType === 'DELETE') {
+            const delUser = payload.old?.username;
+            if (delUser) {
+              const filtered = usersList.filter(item => item.login.toUpperCase() !== delUser.toUpperCase());
+              localStorage.setItem('crm_admin_users', JSON.stringify(filtered));
+              syncUserSwitch(filtered);
+              if (state.currentTab === 'admin' && typeof renderView === 'function') renderView();
+            }
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('[Supabase] Falha na sincronização inicial:', e);
+    }
+  }
+
   // Estado da Aplicação
   const state = {
     currentTab: 'dashboard',
@@ -2359,7 +2577,7 @@
             </td>
             <td>
               <button type="button" class="comp-action-btn btn-open-company" data-company="${c.rawName.replace(/"/g, '&quot;')}">
-                Gerenciar →
+                Ver Detalhes →
               </button>
             </td>
           </tr>
@@ -2369,14 +2587,14 @@
       tbody.querySelectorAll('.companies-row').forEach(row => {
         row.addEventListener('click', (e) => {
           if (e.target.closest('button')) return;
-          openCompanyModal(row.dataset.company);
+          openCompanyDrawer(row.dataset.company);
         });
       });
 
       tbody.querySelectorAll('.btn-open-company').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          openCompanyModal(btn.dataset.company);
+          openCompanyDrawer(btn.dataset.company);
         });
       });
     }
@@ -2892,8 +3110,12 @@
           }
         });
 
-        // 4. Salva no localStorage
+        // 4. Salva no localStorage e Supabase
         saveDataStore();
+        if (window.crmSupabase?.isConnected) {
+          const comp = appData.companies.find(c => c.EMPRESA.toLowerCase() === updatedName.toLowerCase());
+          if (comp) window.crmSupabase.saveCompany(comp);
+        }
         closeModal();
         showToast(`Empresa "${updatedName}" atualizada com sucesso!`, 'success');
 
@@ -4196,41 +4418,372 @@
         </table>
       </div>
 
-      <h3 class="form-section-title">Políticas de Coparticipação por Evento (RN-09)</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2rem; margin-bottom:0.85rem;">
+        <h3 class="form-section-title" style="margin:0; border:none;">Políticas de Coparticipação por Evento (RN-09)</h3>
+        <button class="btn btn-primary btn-sm" id="btn-new-copart-policy">
+          ➕ Novo Modelo de Coparticipação
+        </button>
+      </div>
       <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
               <th>Nome da Política</th>
-              <th>Desconto Evento</th>
-              <th>Partida Evento</th>
+              <th>Desconto</th>
+              <th>Ultrapasse (Partida)</th>
               <th>Consulta Eletiva</th>
               <th>Emergência</th>
               <th>Exame Simples</th>
               <th>Exame Complexo</th>
               <th>Terapia</th>
               <th>Valor Terapia</th>
+              <th style="text-align:right;">Ações</th>
             </tr>
           </thead>
           <tbody>
-            ${copart.map(c => `
+            ${copart.map((c, idx) => `
               <tr>
-                <td><strong>${c.Nome_Politica}</strong></td>
-                <td class="tnum">${c.Desconto_Evento || '0,00%'}</td>
+                <td>
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    ${c.Imagem ? `<img src="${c.Imagem}" alt="" style="width:24px; height:24px; object-fit:contain; border-radius:4px; border:1px solid var(--border-subtle);">` : ''}
+                    <strong>${c.Nome_Politica}</strong>
+                  </div>
+                </td>
+                <td class="tnum">${c.Percentual_Desconto_Evento || c.Desconto_Evento || '0,00%'}</td>
                 <td class="tnum">${c.Qnt_Partida_Evento || '0'}</td>
-                <td class="tnum">${c.Consulta_Eletiva || '-'}</td>
-                <td class="tnum">${c.Emergencia || '-'}</td>
-                <td class="tnum">${c.Exames_Simples || '-'}</td>
-                <td class="tnum">${c.Exames_Complexos || '-'}</td>
+                <td class="tnum">${c.Valor_Consulta_Eletiva || c.Consulta_Eletiva || '-'}</td>
+                <td class="tnum">${c.Valor_Consulta_Emergencia || c.Emergencia || '-'}</td>
+                <td class="tnum">${c.Valor_Exames_Simples || c.Exames_Simples || '-'}</td>
+                <td class="tnum">${c.Valor_Exames_Complexos || c.Exames_Complexos || '-'}</td>
                 <td>${c.Terapia === 'Sim' ? '<span class="temp-badge temp-fechado">Sim</span>' : '<span class="temp-badge temp-fria">Não</span>'}</td>
                 <td class="tnum">${c.Valor_Terapia || 'Não aplicável'}</td>
+                <td style="text-align:right;">
+                  <button class="btn btn-ghost btn-xs btn-edit-copart" data-index="${idx}" title="Editar Modelo">✏️</button>
+                  ${idx >= 2 ? `<button class="btn btn-ghost btn-xs btn-delete-copart" data-index="${idx}" title="Excluir Modelo" style="color:var(--danger);">🗑️</button>` : ''}
+                </td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       </div>
     `;
+
+    // Eventos da Tela de Políticas
+    const btnNewCopart = container.querySelector('#btn-new-copart-policy');
+    if (btnNewCopart) {
+      btnNewCopart.addEventListener('click', () => {
+        openNewCopartModal();
+      });
+    }
+
+    container.querySelectorAll('.btn-edit-copart').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.index, 10);
+        if (copart[idx]) {
+          openNewCopartModal(copart[idx], idx);
+        }
+      });
+    });
+
+    container.querySelectorAll('.btn-delete-copart').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.index, 10);
+        const item = copart[idx];
+        if (item && confirm(`Tem certeza que deseja excluir o modelo de coparticipação "${item.Nome_Politica}"?`)) {
+          copart.splice(idx, 1);
+          saveDataStore();
+          showToast(`Modelo de coparticipação removido com sucesso.`);
+          renderView();
+        }
+      });
+    });
   }
+
+  // MODAL DE CADASTRO / EDIÇÃO DE NOVO MODELO DE COPARTICIPAÇÃO
+  function openNewCopartModal(editItem = null, editIndex = -1) {
+    let modal = document.getElementById('copart-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'copart-modal';
+      modal.className = 'modal-backdrop';
+      document.body.appendChild(modal);
+    }
+
+    const isEdit = !!editItem;
+    const initialNome = editItem ? (editItem.Nome_Politica || '') : '';
+    let initialDesconto = 0;
+    if (editItem) {
+      const descStr = editItem.Percentual_Desconto_Evento || editItem.Desconto_Evento || '0%';
+      const parsed = parseFloat(String(descStr).replace(/[%\s]/g, '').replace(',', '.'));
+      if (!isNaN(parsed)) initialDesconto = Math.round(parsed);
+    }
+    const initialUltrapasse = editItem ? (parseInt(editItem.Qnt_Partida_Evento, 10) || 0) : 0;
+    const initialEletiva = editItem ? (editItem.Valor_Consulta_Eletiva || editItem.Consulta_Eletiva || 'R$ 0,00') : 'R$ 0,00';
+    const initialEmergencia = editItem ? (editItem.Valor_Consulta_Emergencia || editItem.Emergencia || 'R$ 0,00') : 'R$ 0,00';
+    const initialExamesSimples = editItem ? (editItem.Valor_Exames_Simples || editItem.Exames_Simples || 'R$ 0,00') : 'R$ 0,00';
+    const initialExamesComplexos = editItem ? (editItem.Valor_Exames_Complexos || editItem.Exames_Complexos || 'R$ 0,00') : 'R$ 0,00';
+    const initialTerapia = editItem && editItem.Terapia === 'Sim' ? 'Sim' : 'Não';
+    const initialValorTerapia = editItem ? (editItem.Valor_Terapia || 'R$ 0,00') : 'R$ 0,00';
+    let currentImage = editItem ? (editItem.Imagem || '') : '';
+
+    modal.innerHTML = `
+      <div class="modal-dialog" style="max-width:560px;">
+        <div class="modal-header">
+          <div>
+            <h3>${isEdit ? 'Editar Modelo de Coparticipação' : 'Novo Modelo de Coparticipação'}</h3>
+            <span style="font-size:0.75rem; color:var(--text-muted);">Parametrização de regras e valores limitadores (RN-09)</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btn-close-copart-modal" style="font-size:1.25rem;">✕</button>
+        </div>
+
+        <div class="modal-body" style="padding:1.5rem 1.75rem;">
+          <form id="form-copart">
+            <!-- 1. Nome da Política de Coparticipação -->
+            <div class="form-group" style="margin-bottom:1.25rem;">
+              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">
+                Nome da Politica de Coparticipação <span class="req">*</span>
+              </label>
+              <input type="text" class="form-control" id="inp-copart-nome" value="${initialNome}" placeholder="Digite o nome da política..." style="border: 2px solid #b91c1c; border-radius: var(--radius-sm, 4px);" required>
+            </div>
+
+            <!-- 2. Percentual de Desconto -->
+            <div class="form-group copart-slider-wrapper" style="margin-bottom:1.25rem;">
+              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">
+                Percentual de Desconto <span class="req">*</span>
+              </label>
+              <div class="copart-slider-val" id="copart-slider-label">${initialDesconto}%</div>
+              <input type="range" class="copart-range-input" id="inp-copart-desconto" min="0" max="100" step="1" value="${initialDesconto}">
+            </div>
+
+            <!-- 3. Quantidade de Ultrapasse Mensal -->
+            <div class="form-group" style="margin-bottom:1.25rem;">
+              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">
+                Quantidade de Ultrapasse Mensal <span class="req">*</span>
+              </label>
+              <div class="stepper-input-group" style="border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+                <input type="text" class="form-control stepper-input" id="inp-copart-ultrapasse" value="${initialUltrapasse}" style="text-align:left; padding-left:1rem; border:none;">
+                <button type="button" class="stepper-btn minus" id="btn-copart-ultrapasse-minus" style="border:none; border-left:1px solid var(--border-subtle); background:transparent;">−</button>
+                <button type="button" class="stepper-btn plus" id="btn-copart-ultrapasse-plus" style="border:none; border-left:1px solid var(--border-subtle); background:transparent;">+</button>
+              </div>
+            </div>
+
+            <!-- 4. Valor Limitador: Consulta Eletiva -->
+            <div class="form-group" style="margin-bottom:1.25rem;">
+              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">
+                Valor Limitador: Consulta Eletiva <span class="req">*</span>
+              </label>
+              <input type="text" class="form-control" id="inp-copart-eletiva" value="${initialEletiva}" placeholder="R$ 0,00" required>
+            </div>
+
+            <!-- 5. Valor Limitador: Consulta Urgência / Emergência -->
+            <div class="form-group" style="margin-bottom:1.25rem;">
+              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">
+                Valor Limitador: Consulta Urgência / Emergência <span class="req">*</span>
+              </label>
+              <input type="text" class="form-control" id="inp-copart-emergencia" value="${initialEmergencia}" placeholder="R$ 0,00" required>
+            </div>
+
+            <!-- 6. Valor Limitador: Exames Simples -->
+            <div class="form-group" style="margin-bottom:1.25rem;">
+              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">
+                Valor Limitador: Exames Simples <span class="req">*</span>
+              </label>
+              <input type="text" class="form-control" id="inp-copart-exames-simples" value="${initialExamesSimples}" placeholder="R$ 0,00" required>
+            </div>
+
+            <!-- 7. Valor Limitador: Exames Complexos -->
+            <div class="form-group" style="margin-bottom:1.25rem;">
+              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">
+                Valor Limitador: Exames Complexos <span class="req">*</span>
+              </label>
+              <input type="text" class="form-control" id="inp-copart-exames-complexos" value="${initialExamesComplexos}" placeholder="R$ 0,00" required>
+            </div>
+
+            <!-- 8. Imagem -->
+            <div class="form-group" style="margin-bottom:1.25rem;">
+              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">Imagem</label>
+              <input type="file" id="inp-copart-file" accept="image/*" style="display:none;">
+              <div class="copart-image-upload-box" id="copart-image-box" title="Clique para anexar uma imagem">
+                <span class="copart-camera-icon" id="copart-camera-icon" style="${currentImage ? 'display:none;' : ''}">📷</span>
+                <img id="copart-img-preview" class="copart-img-preview" src="${currentImage}" style="${currentImage ? '' : 'display:none;'}" alt="Preview">
+              </div>
+            </div>
+
+            <!-- 9. Cobrança de Coparticipação para Terapia -->
+            <div class="form-group" style="margin-bottom:1rem;">
+              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">
+                Haverá Cobrança de Coparticipação para Terapia? <span class="req">*</span>
+              </label>
+              <input type="hidden" id="inp-copart-terapia" value="${initialTerapia}">
+              <div class="segmented-yes-no" id="copart-terapia-segmented">
+                <button type="button" class="${initialTerapia === 'Sim' ? 'active' : ''}" data-value="Sim">Sim</button>
+                <button type="button" class="${initialTerapia !== 'Sim' ? 'active' : ''}" data-value="Não">Não</button>
+              </div>
+            </div>
+
+            <div class="form-group" id="group-copart-valor-terapia" style="margin-bottom:1rem; ${initialTerapia === 'Sim' ? '' : 'display:none;'}">
+              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">
+                Valor Limitador: Terapia <span class="req">*</span>
+              </label>
+              <input type="text" class="form-control" id="inp-copart-valor-terapia" value="${initialValorTerapia}" placeholder="R$ 0,00">
+            </div>
+          </form>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-ghost" id="btn-cancel-copart-modal">Cancelar</button>
+          <button class="btn btn-primary" id="btn-save-copart-policy">💾 Salvar Modelo de Coparticipação</button>
+        </div>
+      </div>
+    `;
+
+    modal.classList.add('active');
+
+    // Referências aos campos
+    const inpNome = modal.querySelector('#inp-copart-nome');
+    const inpDesconto = modal.querySelector('#inp-copart-desconto');
+    const labelDesconto = modal.querySelector('#copart-slider-label');
+    const inpUltrapasse = modal.querySelector('#inp-copart-ultrapasse');
+    const btnUltrapasseMinus = modal.querySelector('#btn-copart-ultrapasse-minus');
+    const btnUltrapassePlus = modal.querySelector('#btn-copart-ultrapasse-plus');
+    const inpEletiva = modal.querySelector('#inp-copart-eletiva');
+    const inpEmergencia = modal.querySelector('#inp-copart-emergencia');
+    const inpExamesSimples = modal.querySelector('#inp-copart-exames-simples');
+    const inpExamesComplexos = modal.querySelector('#inp-copart-exames-complexos');
+    const inpHiddenTerapia = modal.querySelector('#inp-copart-terapia');
+    const inpValorTerapia = modal.querySelector('#inp-copart-valor-terapia');
+    const groupValorTerapia = modal.querySelector('#group-copart-valor-terapia');
+    const boxImage = modal.querySelector('#copart-image-box');
+    const fileImage = modal.querySelector('#inp-copart-file');
+    const iconCamera = modal.querySelector('#copart-camera-icon');
+    const imgPreview = modal.querySelector('#copart-img-preview');
+
+    // Slider de Desconto
+    inpDesconto.addEventListener('input', () => {
+      labelDesconto.textContent = `${inpDesconto.value}%`;
+    });
+
+    // Stepper de Ultrapasse
+    btnUltrapasseMinus.addEventListener('click', () => {
+      let n = parseInt(inpUltrapasse.value, 10) || 0;
+      inpUltrapasse.value = Math.max(0, n - 1);
+    });
+
+    btnUltrapassePlus.addEventListener('click', () => {
+      let n = parseInt(inpUltrapasse.value, 10) || 0;
+      inpUltrapasse.value = n + 1;
+    });
+
+    // Formatação de Moeda pt-BR nos inputs monetários
+    function applyCurrencyFormatting(input) {
+      input.addEventListener('blur', () => {
+        const val = BusinessRules.parseCurrency(input.value);
+        input.value = BusinessRules.formatCurrency(val);
+      });
+      input.addEventListener('focus', () => {
+        if (input.value === 'R$ 0,00' || input.value === '') {
+          input.select();
+        }
+      });
+    }
+
+    applyCurrencyFormatting(inpEletiva);
+    applyCurrencyFormatting(inpEmergencia);
+    applyCurrencyFormatting(inpExamesSimples);
+    applyCurrencyFormatting(inpExamesComplexos);
+    applyCurrencyFormatting(inpValorTerapia);
+
+    // Upload de Imagem
+    boxImage.addEventListener('click', () => fileImage.click());
+    fileImage.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          currentImage = evt.target.result;
+          imgPreview.src = currentImage;
+          imgPreview.style.display = 'block';
+          iconCamera.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Segmented Sim / Não para Terapia
+    modal.querySelectorAll('#copart-terapia-segmented button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        modal.querySelectorAll('#copart-terapia-segmented button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const val = btn.dataset.value;
+        inpHiddenTerapia.value = val;
+        if (val === 'Sim') {
+          groupValorTerapia.style.display = 'block';
+        } else {
+          groupValorTerapia.style.display = 'none';
+        }
+      });
+    });
+
+    // Fechamento
+    modal.querySelector('#btn-close-copart-modal').addEventListener('click', () => modal.classList.remove('active'));
+    modal.querySelector('#btn-cancel-copart-modal').addEventListener('click', () => modal.classList.remove('active'));
+
+    // Salvar
+    modal.querySelector('#btn-save-copart-policy').addEventListener('click', () => {
+      const nome = inpNome.value.trim();
+      if (!nome) {
+        alert('Por favor informe o Nome da Política de Coparticipação.');
+        inpNome.focus();
+        return;
+      }
+
+      const ultrapasseVal = parseInt(inpUltrapasse.value, 10) || 0;
+      const eletivaVal = BusinessRules.formatCurrency(BusinessRules.parseCurrency(inpEletiva.value));
+      const emergenciaVal = BusinessRules.formatCurrency(BusinessRules.parseCurrency(inpEmergencia.value));
+      const examesSimplesVal = BusinessRules.formatCurrency(BusinessRules.parseCurrency(inpExamesSimples.value));
+      const examesComplexosVal = BusinessRules.formatCurrency(BusinessRules.parseCurrency(inpExamesComplexos.value));
+      const terapiaChoice = inpHiddenTerapia.value;
+      const valorTerapiaVal = terapiaChoice === 'Sim' ? BusinessRules.formatCurrency(BusinessRules.parseCurrency(inpValorTerapia.value)) : 'Não aplicável';
+
+      const policyObject = {
+        _RowNumber: editItem ? editItem._RowNumber : String((appData.coparticipationPolicies.length + 2)),
+        Id_Politica: editItem ? editItem.Id_Politica : Math.random().toString(16).substring(2, 10),
+        Nome_Politica: nome,
+        Percentual_Desconto_Evento: `${inpDesconto.value},00%`,
+        Desconto_Evento: `${inpDesconto.value},00%`,
+        Qnt_Partida_Evento: String(ultrapasseVal),
+        Valor_Consulta_Eletiva: eletivaVal,
+        Consulta_Eletiva: eletivaVal,
+        Valor_Consulta_Emergencia: emergenciaVal,
+        Emergencia: emergenciaVal,
+        Valor_Exames_Simples: examesSimplesVal,
+        Exames_Simples: examesSimplesVal,
+        Valor_Exames_Complexos: examesComplexosVal,
+        Exames_Complexos: examesComplexosVal,
+        Terapia: terapiaChoice,
+        Valor_Terapia: valorTerapiaVal,
+        Imagem: currentImage || ''
+      };
+
+      if (isEdit && editIndex >= 0) {
+        appData.coparticipationPolicies[editIndex] = { ...appData.coparticipationPolicies[editIndex], ...policyObject };
+        showToast(`Modelo de Coparticipação "${nome}" atualizado com sucesso!`);
+      } else {
+        appData.coparticipationPolicies.push(policyObject);
+        showToast(`Modelo de Coparticipação "${nome}" cadastrado com sucesso!`);
+      }
+
+      saveDataStore();
+      if (window.crmSupabase?.isConnected) {
+        window.crmSupabase.saveCopartPolicy(policyObject);
+      }
+      modal.classList.remove('active');
+      renderView();
+    });
+  }
+
+  // Exposição global do modal de coparticipação
+  window.openNewCopartModal = openNewCopartModal;
 
   // 7. AUDITORIA E MATRIZ DE REQUISITOS
   function renderAuditAndRequirements(container) {
@@ -4362,12 +4915,35 @@
     if (reqPriority) reqPriority.addEventListener('change', filterRequirements);
   }
 
-  // 8. DRAWER LATERAL DE DETALHES DA PROPOSTA
-  function openProposalDrawer(proposalId) {
-    const p = appData.proposals.find(item => String(item.ID) === String(proposalId));
-    if (!p) return;
+  // 8. DRAWER LATERAL DE DETALHES DA EMPRESA / PROPOSTA (LAYOUT LEGADO COM 22 CAMPOS & LINKS INTERATIVOS)
+  function resolveCampaignStatus(campaignName) {
+    if (!campaignName || campaignName === 'Sem Campanha') return 'Não se aplica';
+    const saved = appData.campaignStatuses && appData.campaignStatuses[campaignName];
+    if (saved) return (saved === 'Em Andamento' || saved === 'Ativa') ? 'Campanha Ativa' : 'Campanha Encerrada';
+    if (campaignName.includes('2026')) return 'Campanha Ativa';
+    return 'Campanha Encerrada';
+  }
 
-    state.selectedProposal = p;
+  function openCompanyDrawer(companyName, proposalId = null) {
+    const proposals = (appData.proposals || []).filter(p => p.EMPRESA === companyName);
+    if (proposals.length > 0) {
+      let targetProp = proposals[0];
+      if (proposalId) {
+        const found = proposals.find(p => String(p.ID) === String(proposalId));
+        if (found) targetProp = found;
+      }
+      openProposalDrawer(targetProp.ID, { companyMode: true, companyName: companyName, companyProposals: proposals });
+    } else {
+      openProposalDrawer(null, { companyMode: true, companyName: companyName, companyProposals: [] });
+    }
+  }
+
+  function openProposalDrawer(proposalId, options = {}) {
+    let p = proposalId ? appData.proposals.find(item => String(item.ID) === String(proposalId)) : null;
+    if (!p && options.companyName) {
+      const compProps = (appData.proposals || []).filter(item => item.EMPRESA === options.companyName);
+      if (compProps.length > 0) p = compProps[0];
+    }
 
     let drawer = document.getElementById('proposal-drawer');
     if (!drawer) {
@@ -4377,6 +4953,69 @@
       document.body.appendChild(drawer);
     }
 
+    const circleArrowSvg = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="10 8 14 12 10 16"></polyline>
+      </svg>
+    `;
+
+    // Caso a empresa não possua cotações cadastradas
+    if (!p) {
+      const compName = options.companyName || 'Empresa';
+      const compDetails = getCompanyDetails(compName);
+      drawer.innerHTML = `
+        <div class="drawer-panel">
+          <div class="drawer-header">
+            <div>
+              <span class="code-tag">Empresa Cadastrada</span>
+              <h3 style="font-size:1.15rem; font-weight:700; margin-top:0.25rem;">${compName}</h3>
+              <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.2rem;">
+                ${compDetails.cnpj ? `CNPJ: ${compDetails.cnpj} • ` : ''}UF: ${compDetails.uf || 'BA'}
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <button class="btn btn-secondary btn-sm" id="btn-manage-company-from-drawer" title="Gerenciar cadastro da empresa">
+                🏢 Cadastro da Empresa
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btn-close-drawer" style="font-size:1.25rem;">✕</button>
+            </div>
+          </div>
+          <div class="drawer-body">
+            <div style="padding:2.5rem 1rem; text-align:center; color:var(--text-muted); background:var(--bg-canvas); border-radius:var(--radius-md); border:1px dashed var(--border-subtle);">
+              <span style="font-size:2.5rem; display:block; margin-bottom:0.75rem;">📋</span>
+              <h4 style="margin:0 0 0.5rem 0; color:var(--text-primary); font-size:1.05rem;">Nenhuma Cotação Cadastrada</h4>
+              <p style="font-size:0.85rem; margin:0 0 1.25rem 0;">Esta empresa não possui cotações registradas no histórico.</p>
+              <button class="btn btn-primary btn-sm" id="btn-new-quote-from-empty-comp">
+                ➕ Nova Cotação para esta Empresa
+              </button>
+            </div>
+          </div>
+          <div class="drawer-footer">
+            <button class="btn btn-ghost btn-sm" id="btn-close-drawer-bottom">Fechar</button>
+          </div>
+        </div>
+      `;
+      drawer.classList.add('active');
+
+      const closeHandler = () => drawer.classList.remove('active');
+      drawer.querySelector('#btn-close-drawer')?.addEventListener('click', closeHandler);
+      drawer.querySelector('#btn-close-drawer-bottom')?.addEventListener('click', closeHandler);
+      drawer.addEventListener('click', (e) => { if (e.target === drawer) closeHandler(); });
+
+      drawer.querySelector('#btn-manage-company-from-drawer')?.addEventListener('click', () => {
+        openCompanyModal(compName);
+      });
+      drawer.querySelector('#btn-new-quote-from-empty-comp')?.addEventListener('click', () => {
+        drawer.classList.remove('active');
+        openNewQuoteModal({ EMPRESA: compName, CNPJ: compDetails.cnpj, UF: compDetails.uf });
+      });
+      return;
+    }
+
+    state.selectedProposal = p;
+    const companyName = p.EMPRESA || options.companyName || 'Empresa';
+    const allCompanyProps = (appData.proposals || []).filter(item => item.EMPRESA === companyName);
     const hasCopart = p.FATOR_MODERADOR && p.FATOR_MODERADOR.includes('Coparticipação');
 
     drawer.innerHTML = `
@@ -4384,132 +5023,249 @@
         <div class="drawer-header">
           <div>
             <span class="code-tag">#PRP-${p.ID}</span>
-            <h3 style="font-size:1.15rem; font-weight:700; margin-top:0.25rem;">${p.EMPRESA || 'Empresa'}</h3>
+            <h3 style="font-size:1.15rem; font-weight:700; margin-top:0.25rem;">${companyName}</h3>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.2rem;">
+              ${p.CNPJ ? `CNPJ: ${p.CNPJ} • ` : ''}UF: ${p.UF || 'BA'} • ${allCompanyProps.length} cotaç${allCompanyProps.length === 1 ? 'ão' : 'ões'}
+            </div>
           </div>
-          <button class="btn btn-ghost btn-sm" id="btn-close-drawer" style="font-size:1.25rem;">✕</button>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <button class="btn btn-secondary btn-sm" id="btn-manage-company-from-drawer" title="Gerenciar cadastro fiscal, corretores e campanha">
+              🏢 Cadastro da Empresa
+            </button>
+            <button class="btn btn-ghost btn-sm" id="btn-close-drawer" style="font-size:1.25rem;">✕</button>
+          </div>
         </div>
 
         <div class="drawer-body">
-          <!-- Status e Governança -->
-          <div class="detail-section">
-            <h4>Status & Situação Comercial</h4>
-            <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
-              <span class="temp-badge ${getBadgeClass(p.TEMPERATURA_CONTRATO)}" style="font-size:0.85rem; padding:0.35rem 0.85rem;">
-                ${p.TEMPERATURA_CONTRATO || 'Iniciada'}
-              </span>
-              <span class="temp-badge ${p.Aptidao === 'Inapto' ? 'temp-declinado' : 'temp-fechado'}">
-                Aptidão: ${p.Aptidao || 'Apto'}
-              </span>
+          ${allCompanyProps.length > 1 ? `
+            <div class="drawer-quote-switcher" title="Alternar entre cotações desta empresa">
+              ${allCompanyProps.map((cp, idx) => `
+                <button type="button" class="drawer-quote-pill ${String(cp.ID) === String(p.ID) ? 'active' : ''}" data-prop-id="${cp.ID}">
+                  #PRP-${cp.ID} • ${cp.DATA_DA_PROSPECCAO || cp.COMPETENCIA || `Cotação ${idx + 1}`}
+                </button>
+              `).join('')}
             </div>
-            ${p.TEMPERATURA_CONTRATO === 'Declinado pela SB Saúde' ? `
-              <div class="alert-decline">
-                <strong>Motivo do Declínio:</strong> ${p.Motivo_Declinio || 'Não especificado'}
+          ` : ''}
+
+          <div class="drawer-legacy-fields-list">
+            <!-- 1. Empresa -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Empresa</span>
+              <div class="drawer-legacy-val">
+                <span>${companyName}</span>
+                <button type="button" class="detail-link-arrow" data-link-type="company" data-link-value="${companyName.replace(/"/g, '&quot;')}" title="Gerenciar cadastro de ${companyName}">
+                  ${circleArrowSvg}
+                </button>
+              </div>
+            </div>
+
+            <!-- 2. Data da Proposta -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Data da Proposta</span>
+              <div class="drawer-legacy-val">${p.DATA_DA_PROSPECCAO || '-'}</div>
+            </div>
+
+            <!-- 3. Competência -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Competência</span>
+              <div class="drawer-legacy-val tnum">${p.COMPETENCIA || '-'}</div>
+            </div>
+
+            <!-- 4. Vidas -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Vidas</span>
+              <div class="drawer-legacy-val tnum">${p.VIDAS || '0'}</div>
+            </div>
+
+            <!-- 5. UF -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">UF</span>
+              <div class="drawer-legacy-val">${p.UF || '-'}</div>
+            </div>
+
+            <!-- 6. TKM (Ticket Médio) -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">TKM (Ticket Médio)</span>
+              <div class="drawer-legacy-val tnum">${p.TKM || 'R$0,00'}</div>
+            </div>
+
+            <!-- 7. Faturamento -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Faturamento</span>
+              <div class="drawer-legacy-val tnum" style="color:var(--primary);">${p.FATURAMENTO || 'R$0,00'}</div>
+            </div>
+
+            <!-- 8. Acomodação -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Acomodação</span>
+              <div class="drawer-legacy-val">${p.ACOMODACAO || 'Enfermaria'}</div>
+            </div>
+
+            <!-- 9. Fator Moderador -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Fator Moderador</span>
+              <div class="drawer-legacy-val">${p.FATOR_MODERADOR || 'Mensalidade'}</div>
+            </div>
+
+            <!-- 10. Politica de Coparticipação -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Politica de Coparticipação</span>
+              <div class="drawer-legacy-val">
+                <span>${p.POLITICA_COPARTICIPACAO || (hasCopart ? 'Padrão SB Saúde' : 'Não aplicável')}</span>
+                ${hasCopart || p.POLITICA_COPARTICIPACAO ? `
+                  <button type="button" class="detail-link-arrow" data-link-type="copart" data-link-value="${(p.POLITICA_COPARTICIPACAO || 'Padrão SB Saúde').replace(/"/g, '&quot;')}" title="Acessar Políticas de Coparticipação">
+                    ${circleArrowSvg}
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- 11. Corretor de Negocios 1 -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Corretor de Negocios 1</span>
+              <div class="drawer-legacy-val">
+                <span>${p.CORRETORES_1 || 'Direto'}</span>
+                ${p.CORRETORES_1 && p.CORRETORES_1 !== 'Direto' ? `
+                  <button type="button" class="detail-link-arrow" data-link-type="broker" data-link-value="${p.CORRETORES_1.replace(/"/g, '&quot;')}" title="Acessar Corretor ${p.CORRETORES_1}">
+                    ${circleArrowSvg}
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- 12. Agenciamento do Corretor 1 -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Agenciamento do Corretor 1</span>
+              <div class="drawer-legacy-val">
+                <span>${p.AGENCIAMENTO_1 || 'Padrão SB Saúde'}</span>
+                <button type="button" class="detail-link-arrow" data-link-type="agency" data-link-value="${(p.AGENCIAMENTO_1 || 'Padrão SB Saúde').replace(/"/g, '&quot;')}" title="Acessar Políticas de Agenciamento">
+                  ${circleArrowSvg}
+                </button>
+              </div>
+            </div>
+
+            <!-- 13. Campanha -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Campanha</span>
+              <div class="drawer-legacy-val">
+                <span>${p.PLANO_CAMPANHA || 'Sem Campanha'}</span>
+                ${p.PLANO_CAMPANHA && p.PLANO_CAMPANHA !== 'Sem Campanha' ? `
+                  <button type="button" class="detail-link-arrow" data-link-type="campaign" data-link-value="${p.PLANO_CAMPANHA.replace(/"/g, '&quot;')}" title="Acessar Campanha ${p.PLANO_CAMPANHA}">
+                    ${circleArrowSvg}
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- 14. Status Campanha -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Status Campanha</span>
+              <div class="drawer-legacy-val">
+                <span>${resolveCampaignStatus(p.PLANO_CAMPANHA)}</span>
+              </div>
+            </div>
+
+            <!-- 15. Temperatura do Fechamento do Contrato -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Temperatura do Fechamento do Contrato</span>
+              <div class="drawer-legacy-val">
+                <span class="temp-badge ${getBadgeClass(p.TEMPERATURA_CONTRATO)}">${p.TEMPERATURA_CONTRATO || 'Iniciada'}</span>
+              </div>
+            </div>
+
+            <!-- 16. Empresa Apta ou Inapta para Contabilização da Conversão -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Empresa Apta ou Inapta para Contabilização da Conversão</span>
+              <div class="drawer-legacy-val">
+                <span class="temp-badge ${p.Aptidao === 'Inapto' ? 'temp-declinado' : 'temp-fechado'}">${p.Aptidao || 'Apto'}</span>
+              </div>
+            </div>
+
+            <!-- 17. Tipo do Contrato -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Tipo do Contrato</span>
+              <div class="drawer-legacy-val">${p.Tipo_Contrato || 'Empresarial'}</div>
+            </div>
+
+            <!-- 18. Quantidade de Faixas Etárias -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Quantidade de Faixas Etárias</span>
+              <div class="drawer-legacy-val">${p.Qnt_Faixa_Etaria || 'Faixa Única'}</div>
+            </div>
+
+            <!-- 19. Faixas Etárias -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Faixas Etárias</span>
+              <div class="drawer-legacy-val multiline">${p.Faixa_Etaria || '00 a 18 anos , 19 a 23 anos , 24 a 28 anos , 29 a 33 anos , 34 a 38 anos , 39 a 43 anos , 44 a 48 anos , 49 a 53 anos , 54 a 58 anos , 59 anos acima'}</div>
+            </div>
+
+            <!-- 20. Data da Avaliação: Diretoria -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Data da Avaliação: Diretoria</span>
+              <div class="drawer-legacy-val">${p.Data_Avaliacao_Diretoria || '-'}</div>
+            </div>
+
+            <!-- 21. Data de Envio da Proposta ao Corretor e/ou Cliente -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Data de Envio da Proposta ao Corretor e/ou Cliente</span>
+              <div class="drawer-legacy-val">${p.Data_Envio_Corretor || '-'}</div>
+            </div>
+
+            <!-- 22. Observações -->
+            <div class="drawer-legacy-field">
+              <span class="drawer-legacy-label">Observações</span>
+              <div class="drawer-legacy-val multiline">${p.Observacao || '-'}</div>
+            </div>
+
+            <!-- Corretores Adicionais (se houver) -->
+            ${p.CORRETORES_2 ? `
+              <div class="drawer-legacy-field">
+                <span class="drawer-legacy-label">Corretor de Negócios 2</span>
+                <div class="drawer-legacy-val">
+                  <span>${p.CORRETORES_2}</span>
+                  <button type="button" class="detail-link-arrow" data-link-type="broker" data-link-value="${p.CORRETORES_2.replace(/"/g, '&quot;')}" title="Acessar Corretor ${p.CORRETORES_2}">
+                    ${circleArrowSvg}
+                  </button>
+                </div>
+              </div>
+              <div class="drawer-legacy-field">
+                <span class="drawer-legacy-label">Agenciamento do Corretor 2</span>
+                <div class="drawer-legacy-val">
+                  <span>${p.AGENCIAMENTO_2 || '-'}</span>
+                  <button type="button" class="detail-link-arrow" data-link-type="agency" data-link-value="${(p.AGENCIAMENTO_2 || 'Padrão SB Saúde').replace(/"/g, '&quot;')}" title="Acessar Políticas de Agenciamento">
+                    ${circleArrowSvg}
+                  </button>
+                </div>
               </div>
             ` : ''}
-          </div>
 
-          <!-- Dados Comerciais e Financeiros -->
-          <div class="detail-section">
-            <h4>Dimensionamento & Faturamento (RN-03)</h4>
-            <div class="detail-grid">
-              <div class="detail-item">
-                <div class="detail-item-label">Vidas Cobertas</div>
-                <div class="detail-item-val tnum">${p.VIDAS || '0'} vidas</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-item-label">Ticket Médio (TKM)</div>
-                <div class="detail-item-val tnum">${p.TKM || 'R$ 0,00'}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-item-label">Faturamento Mensal</div>
-                <div class="detail-item-val tnum" style="color:var(--secondary-light); font-weight:700;">${p.FATURAMENTO || 'R$ 0,00'}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-item-label">Competência (RN-02)</div>
-                <div class="detail-item-val tnum">${p.COMPETENCIA || '-'}</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Configuração do Plano -->
-          <div class="detail-section">
-            <h4>Configuração do Plano (RN-07 e RN-09)</h4>
-            <div class="detail-grid">
-              <div class="detail-item">
-                <div class="detail-item-label">Tipo de Contrato</div>
-                <div class="detail-item-val">${p.Tipo_Contrato || 'Empresarial'}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-item-label">Acomodação</div>
-                <div class="detail-item-val">${p.ACOMODACAO || 'Enfermaria'}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-item-label">Fator Moderador</div>
-                <div class="detail-item-val">${p.FATOR_MODERADOR || 'Mensalidade'}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-item-label">Política Coparticipação</div>
-                <div class="detail-item-val">${p.POLITICA_COPARTICIPACAO || (hasCopart ? 'Padrão SB Saúde' : 'N/A')}</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Corretores -->
-          <div class="detail-section">
-            <h4>Participação dos Corretores (RN-08)</h4>
-            <div class="detail-grid">
-              <div class="detail-item">
-                <div class="detail-item-label">Corretor 1 (Titular)</div>
-                <div class="detail-item-val">${p.CORRETORES_1 || 'Direto'}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-item-label">Corretor 2</div>
-                <div class="detail-item-val">${p.CORRETORES_2 || 'Nenhum'}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-item-label">Corretor 3</div>
-                <div class="detail-item-val">${p.CORRETORES_3 || 'Nenhum'}</div>
-              </div>
-              <div class="detail-item">
-                <div class="detail-item-label">Campanha Vinculada</div>
-                <div class="detail-item-val">${p.PLANO_CAMPANHA || 'Sem Campanha'}</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Linha do Tempo e Governança -->
-          <div class="detail-section">
-            <h4>Checkpoints de Avaliação (RN-01 / RF-24)</h4>
-            <div class="timeline">
-              <div class="timeline-step">
-                <div class="timeline-icon ${p.DATA_DA_PROSPECCAO ? 'done' : 'pending'}">✓</div>
-                <div class="timeline-content">
-                  <div class="timeline-title">Cotação Cadastrada</div>
-                  <div class="timeline-date">${p.DATA_DA_PROSPECCAO || 'Data não registrada'} • Responsável: ${p.Usuario || 'Lucas'}</div>
+            ${p.CORRETORES_3 ? `
+              <div class="drawer-legacy-field">
+                <span class="drawer-legacy-label">Corretor de Negócios 3</span>
+                <div class="drawer-legacy-val">
+                  <span>${p.CORRETORES_3}</span>
+                  <button type="button" class="detail-link-arrow" data-link-type="broker" data-link-value="${p.CORRETORES_3.replace(/"/g, '&quot;')}" title="Acessar Corretor ${p.CORRETORES_3}">
+                    ${circleArrowSvg}
+                  </button>
                 </div>
               </div>
-              <div class="timeline-step">
-                <div class="timeline-icon ${p.Data_Analise_tecnica ? 'done' : 'pending'}">${p.Data_Analise_tecnica ? '✓' : '○'}</div>
-                <div class="timeline-content">
-                  <div class="timeline-title">Avaliação Técnica / Atuarial</div>
-                  <div class="timeline-date">${p.Data_Analise_tecnica || 'Pendente de avaliação técnica'}</div>
+              <div class="drawer-legacy-field">
+                <span class="drawer-legacy-label">Agenciamento do Corretor 3</span>
+                <div class="drawer-legacy-val">
+                  <span>${p.AGENCIAMENTO_3 || '-'}</span>
+                  <button type="button" class="detail-link-arrow" data-link-type="agency" data-link-value="${(p.AGENCIAMENTO_3 || 'Padrão SB Saúde').replace(/"/g, '&quot;')}" title="Acessar Políticas de Agenciamento">
+                    ${circleArrowSvg}
+                  </button>
                 </div>
               </div>
-              <div class="timeline-step">
-                <div class="timeline-icon ${p.Data_Avaliacao_Diretoria ? 'done' : 'pending'}">${p.Data_Avaliacao_Diretoria ? '✓' : '○'}</div>
-                <div class="timeline-content">
-                  <div class="timeline-title">Avaliação da Diretoria</div>
-                  <div class="timeline-date">${p.Data_Avaliacao_Diretoria || 'Pendente de aprovação da diretoria'}</div>
-                </div>
+            ` : ''}
+
+            ${p.Data_Analise_tecnica ? `
+              <div class="drawer-legacy-field">
+                <span class="drawer-legacy-label">Data da Avaliação: Equipe Técnica</span>
+                <div class="drawer-legacy-val">${p.Data_Analise_tecnica}</div>
               </div>
-              <div class="timeline-step">
-                <div class="timeline-icon ${p.Data_Envio_Corretor ? 'done' : 'pending'}">${p.Data_Envio_Corretor ? '✓' : '○'}</div>
-                <div class="timeline-content">
-                  <div class="timeline-title">Envio ao Corretor / Cliente</div>
-                  <div class="timeline-date">${p.Data_Envio_Corretor || 'Pendente de envio'}</div>
-                </div>
-              </div>
-            </div>
+            ` : ''}
           </div>
         </div>
 
@@ -4527,24 +5283,96 @@
 
     drawer.classList.add('active');
 
-    drawer.querySelector('#btn-close-drawer').addEventListener('click', () => {
-      drawer.classList.remove('active');
-    });
-
+    // Fechar drawer
+    const closeDrawer = () => drawer.classList.remove('active');
+    drawer.querySelector('#btn-close-drawer')?.addEventListener('click', closeDrawer);
     drawer.addEventListener('click', (e) => {
-      if (e.target === drawer) {
-        drawer.classList.remove('active');
-      }
+      if (e.target === drawer) closeDrawer();
     });
 
-    const btnEdit = drawer.querySelector('#btn-edit-proposal');
-    if (btnEdit) {
-      btnEdit.addEventListener('click', () => {
-        drawer.classList.remove('active');
-        openNewQuoteModal(p);
-      });
-    }
+    // Gerenciar cadastro da empresa
+    drawer.querySelector('#btn-manage-company-from-drawer')?.addEventListener('click', () => {
+      openCompanyModal(companyName);
+    });
 
+    // Editar cotação
+    drawer.querySelector('#btn-edit-proposal')?.addEventListener('click', () => {
+      drawer.classList.remove('active');
+      openNewQuoteModal(p);
+    });
+
+    // Alternar entre cotações da empresa
+    drawer.querySelectorAll('.drawer-quote-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        const propId = pill.dataset.propId;
+        openProposalDrawer(propId, { companyMode: true, companyName: companyName });
+      });
+    });
+
+    // Links interativos (>)
+    drawer.querySelectorAll('.detail-link-arrow').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const linkType = btn.dataset.linkType;
+        const linkVal = btn.dataset.linkValue;
+
+        if (linkType === 'company') {
+          openCompanyModal(linkVal);
+        } else if (linkType === 'copart') {
+          closeDrawer();
+          if (window.navigateToTab) {
+            window.navigateToTab('policies', () => {
+              const sec = document.getElementById('copart-policies-section');
+              if (sec) {
+                sec.scrollIntoView({ behavior: 'smooth' });
+                sec.classList.add('highlight-section');
+                setTimeout(() => sec.classList.remove('highlight-section'), 2000);
+              }
+              showToast(`Visualizando Políticas de Coparticipação: ${linkVal}`, 'info');
+            });
+          }
+        } else if (linkType === 'broker') {
+          closeDrawer();
+          if (window.navigateToTab) {
+            window.navigateToTab('brokers', () => {
+              const inp = document.getElementById('inp-search-broker') || document.querySelector('.brokers-search-input');
+              if (inp) {
+                inp.value = linkVal;
+                inp.dispatchEvent(new Event('input'));
+              }
+              showToast(`Filtrando Corretor: ${linkVal}`, 'info');
+            });
+          }
+        } else if (linkType === 'agency') {
+          closeDrawer();
+          if (window.navigateToTab) {
+            window.navigateToTab('policies', () => {
+              const sec = document.getElementById('agency-policies-section') || document.querySelector('.policies-section');
+              if (sec) {
+                sec.scrollIntoView({ behavior: 'smooth' });
+                sec.classList.add('highlight-section');
+                setTimeout(() => sec.classList.remove('highlight-section'), 2000);
+              }
+              showToast(`Visualizando Agenciamento: ${linkVal}`, 'info');
+            });
+          }
+        } else if (linkType === 'campaign') {
+          closeDrawer();
+          if (window.navigateToTab) {
+            window.navigateToTab('campaigns', () => {
+              const inp = document.getElementById('inp-search-campaign');
+              if (inp) {
+                inp.value = linkVal;
+                inp.dispatchEvent(new Event('input'));
+              }
+              showToast(`Visualizando Campanha: ${linkVal}`, 'info');
+            });
+          }
+        }
+      });
+    });
+
+    // Atualização rápida de temperatura
     const btnSaveTemp = drawer.querySelector('#btn-save-drawer-temp');
     if (btnSaveTemp) {
       btnSaveTemp.addEventListener('click', () => {
@@ -4560,14 +5388,21 @@
         p.TEMPERATURA_CONTRATO = newTemp;
         p.Aptidao = BusinessRules.determineAptitude(newTemp);
         saveDataStore();
+        if (window.crmSupabase?.isConnected) {
+          window.crmSupabase.saveProposal(p);
+        }
         showToast(`Temperatura de #PRP-${p.ID} atualizada para ${newTemp}!`);
-        drawer.classList.remove('active');
+        closeDrawer();
         renderView();
       });
     }
   }
 
-  // 9. MODAL DE NOVA COTAÇÃO & EDIÇÃO REATIVA
+  // Exposição global dos drawers de empresa e proposta
+  window.openCompanyDrawer = openCompanyDrawer;
+  window.openProposalDrawer = openProposalDrawer;
+
+  // 9. MODAL DE NOVA COTAÇÃO & EDIÇÃO REATIVA (MODELO COMPLETO DO SISTEMA LEGADO)
   function openNewQuoteModal(editItem = null) {
     let modal = document.getElementById('quote-modal');
     if (!modal) {
@@ -4577,35 +5412,72 @@
       document.body.appendChild(modal);
     }
 
-    const isEdit = !!editItem;
-    const initialDate = isEdit ? editItem.DATA_DA_PROSPECCAO : BusinessRules.formatDateBR();
-    const initialComp = isEdit ? editItem.COMPETENCIA : BusinessRules.calculateCompetence(initialDate);
+    const isEdit = !!(editItem && editItem.ID);
+    const initialDate = editItem && editItem.DATA_DA_PROSPECCAO ? editItem.DATA_DA_PROSPECCAO : BusinessRules.formatDateBR();
+    const initialComp = editItem && editItem.COMPETENCIA ? editItem.COMPETENCIA : BusinessRules.calculateCompetence(initialDate);
     const initialId = isEdit ? editItem.ID : BusinessRules.generateUniqueId(appData.proposals);
+    const initialTemp = editItem && editItem.TEMPERATURA_CONTRATO ? editItem.TEMPERATURA_CONTRATO : 'Iniciada';
+    const initialMotivo = editItem && editItem.Motivo_Declinio ? editItem.Motivo_Declinio : '';
+    const initialEmpresa = editItem && editItem.EMPRESA ? editItem.EMPRESA : '';
+    const initialCnpj = editItem && editItem.CNPJ ? editItem.CNPJ : '';
+    const initialVidas = editItem && editItem.VIDAS ? editItem.VIDAS : '100';
+    const initialUf = editItem && editItem.UF ? editItem.UF : (appData.ufs && appData.ufs.length > 0 ? appData.ufs[0].UF : 'SP');
+    const initialCidade = editItem && editItem.CIDADE ? editItem.CIDADE : '';
+    const initialTkm = editItem && editItem.TKM ? editItem.TKM : 'R$ 180,00';
+    const initialAcomodacao = editItem && editItem.ACOMODACAO ? editItem.ACOMODACAO : 'Ambulatorial';
+    const initialTipoContrato = editItem && editItem.Tipo_Contrato ? editItem.Tipo_Contrato : 'Empresarial';
+    const initialQntFaixas = editItem && editItem.Qnt_Faixa_Etaria ? editItem.Qnt_Faixa_Etaria : 'Faixa Única';
+    const initialFaixasStr = editItem && editItem.Faixa_Etaria ? editItem.Faixa_Etaria : '';
+    const initialFator = editItem && editItem.FATOR_MODERADOR ? editItem.FATOR_MODERADOR : 'Mensalidade';
+    const initialCopart = editItem && editItem.POLITICA_COPARTICIPACAO ? editItem.POLITICA_COPARTICIPACAO : '';
+    const initialCorretor1 = editItem && editItem.CORRETORES_1 ? editItem.CORRETORES_1 : '';
+    const initialAgenc1 = editItem && editItem.AGENCIAMENTO_1 ? editItem.AGENCIAMENTO_1 : 'Padrão SB Saúde';
+    const initialVital1 = editItem && editItem.VITALICIO_1 ? editItem.VITALICIO_1 : '% 0,00';
+    const initialCorretor2 = editItem && editItem.CORRETORES_2 ? editItem.CORRETORES_2 : '';
+    const initialAgenc2 = editItem && editItem.AGENCIAMENTO_2 ? editItem.AGENCIAMENTO_2 : '';
+    const initialVital2 = editItem && editItem.VITALICIO_2 ? editItem.VITALICIO_2 : '% 0,00';
+    const initialCorretor3 = editItem && editItem.CORRETORES_3 ? editItem.CORRETORES_3 : '';
+    const initialAgenc3 = editItem && editItem.AGENCIAMENTO_3 ? editItem.AGENCIAMENTO_3 : '';
+    const initialVital3 = editItem && editItem.VITALICIO_3 ? editItem.VITALICIO_3 : '% 0,00';
+    const initialDataTecnica = editItem && editItem.Data_Analise_tecnica ? editItem.Data_Analise_tecnica : '';
+    const initialDataDiretoria = editItem && editItem.Data_Avaliacao_Diretoria ? editItem.Data_Avaliacao_Diretoria : '';
+    const initialDataEnvio = editItem && editItem.Data_Envio_Corretor ? editItem.Data_Envio_Corretor : '';
+    const initialObs = editItem && editItem.Observacao ? editItem.Observacao : '';
+
+    // Formata faixas selecionadas inicialmente em conjunto para busca rápida
+    const selectedFaixasSet = new Set(
+      initialFaixasStr.split(',').map(f => f.trim()).filter(Boolean)
+    );
+
+    // Lista de temperaturas na ordem do sistema legado
+    const legacyTemperaturas = [
+      'Desistência por Ausência de Retorno',
+      'Desistência da Empresa',
+      'Declinado pela SB Saúde',
+      'Iniciada',
+      'Fria',
+      'Morna',
+      'Quente',
+      'Contrato Fechado'
+    ];
 
     modal.innerHTML = `
-      <div class="modal-dialog">
+      <div class="modal-dialog" style="max-width:920px;">
         <div class="modal-header">
-          <h3>${isEdit ? `Editar Cotação #PRP-${editItem.ID}` : 'Nova Cotação / Prospecção Comercial'}</h3>
+          <div>
+            <h3>${isEdit ? `Editar Cotação #PRP-${editItem.ID}` : 'Nova Cotação / Prospecção Comercial'}</h3>
+            <span style="font-size:0.75rem; color:var(--text-muted);">Formulário parametrizado conforme modelo oficial legado do CRM</span>
+          </div>
           <button class="btn btn-ghost btn-sm" id="btn-close-modal" style="font-size:1.25rem;">✕</button>
         </div>
 
         <div class="modal-body">
           <form id="form-quote">
-            <h4 class="form-section-title">1. Cabeçalho & Parâmetros Iniciais (RN-01 e RN-02)</h4>
-            <div class="form-grid">
+            <!-- 1. Competência e Identificação -->
+            <div class="form-grid" style="margin-bottom:1rem;">
               <div class="form-group">
                 <label>Código da Proposta</label>
                 <input type="text" class="form-control" id="inp-id" value="${initialId}" readonly>
-              </div>
-
-              <div class="form-group">
-                <label>Data da Proposta <span class="req">*</span></label>
-                <input type="text" class="form-control" id="inp-date" value="${initialDate}" placeholder="DD/MM/AAAA">
-              </div>
-
-              <div class="form-group">
-                <label>Competência Calculada (1º dia do mês - RN-02)</label>
-                <input type="text" class="form-control" id="inp-comp" value="${initialComp}" readonly style="color:var(--primary-light); font-weight:600;">
               </div>
 
               <div class="form-group">
@@ -4613,113 +5485,305 @@
                 <input type="text" class="form-control" id="inp-user" value="${isEdit ? editItem.Usuario : BusinessRules.getCurrentUser()}" readonly>
               </div>
 
-              <div class="form-group form-full">
-                <label>Temperatura Comercial / Status <span class="req">*</span></label>
-                <select class="form-control" id="inp-temp">
-                  ${BusinessRules.TEMPERATURAS.map(t => `
-                    <option value="${t}" ${isEdit && editItem.TEMPERATURA_CONTRATO === t ? 'selected' : ''}>${t}</option>
-                  `).join('')}
-                </select>
+              <div class="form-group">
+                <label>Competência (RN-02) <span class="req">*</span></label>
+                <input type="text" class="form-control" id="inp-comp" value="${initialComp}" placeholder="01/MM/AAAA" style="color:var(--primary); font-weight:700;">
               </div>
 
-              <div class="form-group form-full" id="group-decline-reason" style="display:none;">
-                <label style="color:var(--warning);">Motivo do Declínio (Obrigatório pela RN-06) <span class="req">*</span></label>
-                <textarea class="form-control" id="inp-decline-reason" rows="2" placeholder="Justifique formalmente o declínio da SB Saúde...">${isEdit ? (editItem.Motivo_Declinio || '') : ''}</textarea>
+              <div class="form-group">
+                <label>Data da Proposta <span class="req">*</span></label>
+                <input type="text" class="form-control" id="inp-date" value="${initialDate}" placeholder="DD/MM/AAAA" required>
               </div>
             </div>
 
-            <h4 class="form-section-title">2. Dados da Empresa & Localização</h4>
+            <!-- 2. Temperatura do Fechamento do Contrato (Modelo Legado com Botões) -->
+            <div class="form-group form-full" style="margin-bottom:1.25rem;">
+              <label>Temperatura do Fechamento do Contrato <span class="req">*</span></label>
+              <input type="hidden" id="inp-temp" value="${initialTemp}">
+              <div class="temp-selector-list" id="temp-buttons-container">
+                ${legacyTemperaturas.map(t => `
+                  <button type="button" class="temp-btn ${t === initialTemp ? 'active' : ''}" data-temp="${t}">
+                    ${t}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- 3. Motivo do Declínio da Cotação (Conforme modelo legado) -->
+            <div class="form-group form-full" id="group-decline-reason" style="margin-bottom:1.25rem; display:flex; flex-direction:column; gap:0.45rem; ${initialTemp === 'Declinado pela SB Saúde' || initialTemp.includes('Desistência') ? '' : 'display:none;'}">
+              <label style="color:var(--primary); font-weight:700;">Motivo do Declínio da Cotação <span class="req">*</span></label>
+              <select class="form-control" id="inp-decline-reason" style="width:100%;">
+                <option value="">Selecione o motivo do declínio...</option>
+                ${BusinessRules.MOTIVOS_DECLINIO.map(m => `
+                  <option value="${m}" ${initialMotivo === m ? 'selected' : ''}>${m}</option>
+                `).join('')}
+                ${initialMotivo && !BusinessRules.MOTIVOS_DECLINIO.includes(initialMotivo) ? `
+                  <option value="${initialMotivo}" selected>${initialMotivo}</option>
+                ` : ''}
+              </select>
+              <textarea class="form-control" id="inp-decline-details" rows="2" placeholder="Justificativa complementar do declínio (obrigatória pela RN-06 caso o motivo seja personalizado)..." style="width:100%;">${initialTemp === 'Declinado pela SB Saúde' && initialMotivo && !BusinessRules.MOTIVOS_DECLINIO.includes(initialMotivo) ? initialMotivo : ''}</textarea>
+            </div>
+
+            <h4 class="form-section-title">Dados da Empresa & Localização</h4>
             <div class="form-grid">
               <div class="form-group form-full">
-                <label>Razão Social / Empresa <span class="req">*</span></label>
-                <input type="text" class="form-control" id="inp-empresa" value="${isEdit ? (editItem.EMPRESA || '') : ''}" placeholder="Nome ou razão social completa" list="companies-datalist" required>
+                <label>Empresa <span class="req">*</span></label>
+                <input type="text" class="form-control" id="inp-empresa" value="${initialEmpresa}" placeholder="Nome ou razão social completa da empresa" list="companies-datalist" required>
                 <datalist id="companies-datalist">
-                  ${appData.companies.slice(0, 80).map(c => `<option value="${c.EMPRESA}">`).join('')}
+                  ${appData.companies.slice(0, 100).map(c => `<option value="${c.EMPRESA}">`).join('')}
                 </datalist>
               </div>
 
               <div class="form-group">
                 <label>CNPJ</label>
-                <input type="text" class="form-control" id="inp-cnpj" value="${isEdit ? (editItem.CNPJ || '') : ''}" placeholder="00.000.000/0000-00">
+                <input type="text" class="form-control" id="inp-cnpj" value="${initialCnpj}" placeholder="00.000.000/0000-00">
               </div>
 
               <div class="form-group">
-                <label>UF</label>
-                <select class="form-control" id="inp-uf">
+                <label>Vidas <span class="req">*</span></label>
+                <input type="number" class="form-control" id="inp-vidas" value="${initialVidas}" min="1" required>
+              </div>
+
+              <div class="form-group">
+                <label>UF <span class="req">*</span></label>
+                <select class="form-control" id="inp-uf" required>
                   ${appData.ufs.map(u => `
-                    <option value="${u.UF}" ${isEdit && editItem.UF === u.UF ? 'selected' : ''}>${u.UF}</option>
+                    <option value="${u.UF}" ${initialUf === u.UF ? 'selected' : ''}>${u.UF}</option>
                   `).join('')}
                 </select>
               </div>
+
+              <div class="form-group">
+                <label>Cidade (Busca inteligente por UF) <span class="req">*</span></label>
+                <div class="city-field-wrapper">
+                  <input type="text" class="form-control" id="inp-cidade" value="${initialCidade}" placeholder="Selecione ou busque a cidade..." list="cities-datalist" autocomplete="off">
+                  <datalist id="cities-datalist"></datalist>
+                  <div class="city-status-text" id="city-status-info">
+                    <span>⚡ Buscando cidades do estado...</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <h4 class="form-section-title">3. Dimensionamento & Faturamento (RN-03)</h4>
+            <h4 class="form-section-title">Dimensionamento Financeiro</h4>
             <div class="form-grid">
               <div class="form-group">
-                <label>Quantidade de Vidas <span class="req">*</span></label>
-                <input type="number" class="form-control" id="inp-vidas" value="${isEdit ? (editItem.VIDAS || '100') : '100'}" min="1" required>
+                <label>TKM (Ticket Médio) <span class="req">*</span></label>
+                <input type="text" class="form-control" id="inp-tkm" value="${initialTkm}" placeholder="R$ 0,00" required>
               </div>
 
               <div class="form-group">
-                <label>Ticket Médio (TKM) <span class="req">*</span></label>
-                <input type="text" class="form-control" id="inp-tkm" value="${isEdit ? (editItem.TKM || 'R$ 180,00') : 'R$ 180,00'}" required>
-              </div>
-
-              <div class="form-group form-full">
                 <label>Faturamento Mensal Calculado (Vidas × TKM - RN-03)</label>
-                <input type="text" class="form-control" id="inp-faturamento" value="${isEdit ? (editItem.FATURAMENTO || 'R$ 18.000,00') : 'R$ 18.000,00'}" readonly style="font-size:1.15rem; font-weight:700; color:var(--secondary-light);">
+                <input type="text" class="form-control" id="inp-faturamento" value="R$ 0,00" readonly style="font-size:1.1rem; font-weight:700; color:var(--secondary-light);">
               </div>
             </div>
 
-            <h4 class="form-section-title">4. Plano & Fator Moderador (RN-07 e RN-09)</h4>
+            <h4 class="form-section-title">Plano, Acomodação & Faixas Etárias</h4>
             <div class="form-grid">
-              <div class="form-group">
-                <label>Tipo de Contrato</label>
-                <select class="form-control" id="inp-tipo-contrato">
-                  ${BusinessRules.TIPOS_CONTRATO.map(tc => `<option value="${tc}" ${isEdit && editItem.Tipo_Contrato === tc ? 'selected' : ''}>${tc}</option>`).join('')}
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label>Acomodação</label>
-                <select class="form-control" id="inp-acomodacao">
-                  ${BusinessRules.ACOMODACOES.map(ac => `<option value="${ac}" ${isEdit && editItem.ACOMODACAO === ac ? 'selected' : ''}>${ac}</option>`).join('')}
-                </select>
-              </div>
-
+              <!-- Acomodação em botões segmentados -->
               <div class="form-group form-full">
+                <label>Acomodação <span class="req">*</span></label>
+                <input type="hidden" id="inp-acomodacao" value="${initialAcomodacao}">
+                <div class="segmented-group" id="acomodacao-segmented-group">
+                  ${BusinessRules.ACOMODACOES.map(ac => `
+                    <button type="button" class="segmented-btn ${ac === initialAcomodacao ? 'active' : ''}" data-value="${ac}">
+                      ${ac}
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <!-- Tipo do Contrato em botões segmentados -->
+              <div class="form-group form-full">
+                <label>Tipo do Contrato <span class="req">*</span></label>
+                <input type="hidden" id="inp-tipo-contrato" value="${initialTipoContrato}">
+                <div class="segmented-group" id="tipo-contrato-segmented-group">
+                  ${BusinessRules.TIPOS_CONTRATO.map(tc => `
+                    <button type="button" class="segmented-btn ${tc === initialTipoContrato ? 'active' : ''}" data-value="${tc}">
+                      ${tc}
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <!-- Quantidade de Faixa Etária -->
+              <div class="form-group">
+                <label>Quantidade de Faixa Etária <span class="req">*</span></label>
+                <select class="form-control" id="inp-qnt-faixas">
+                  ${BusinessRules.QNT_FAIXAS.map(q => `
+                    <option value="${q}" ${initialQntFaixas === q ? 'selected' : ''}>${q}</option>
+                  `).join('')}
+                </select>
+              </div>
+
+              <!-- Fator Moderador -->
+              <div class="form-group">
                 <label>Fator Moderador <span class="req">*</span></label>
                 <select class="form-control" id="inp-fator">
-                  ${BusinessRules.FATORES_MODERADORES.map(f => `<option value="${f}" ${isEdit && editItem.FATOR_MODERADOR === f ? 'selected' : ''}>${f}</option>`).join('')}
+                  ${BusinessRules.FATORES_MODERADORES.map(f => `
+                    <option value="${f}" ${initialFator === f ? 'selected' : ''}>${f}</option>
+                  `).join('')}
                 </select>
               </div>
 
-              <div class="form-group form-full" id="group-copart" style="display:none;">
+              <!-- Política Coparticipação se aplicável -->
+              <div class="form-group form-full" id="group-copart" style="${initialFator.includes('Coparticipação') ? '' : 'display:none;'}">
                 <label>Política de Coparticipação Vinculada (RN-09)</label>
                 <select class="form-control" id="inp-politica-copart">
-                  ${appData.coparticipationPolicies.map(cp => `<option value="${cp.Nome_Politica}" ${isEdit && editItem.POLITICA_COPARTICIPACAO === cp.Nome_Politica ? 'selected' : ''}>${cp.Nome_Politica} (Desconto: ${cp.Desconto_Evento || '0%'}, Consulta: ${cp.Consulta_Eletiva})</option>`).join('')}
+                  ${appData.coparticipationPolicies.map(cp => `
+                    <option value="${cp.Nome_Politica}" ${initialCopart === cp.Nome_Politica ? 'selected' : ''}>
+                      ${cp.Nome_Politica} (Desconto: ${cp.Desconto_Evento || '0%'}, Consulta: ${cp.Consulta_Eletiva})
+                    </option>
+                  `).join('')}
                 </select>
+              </div>
+
+              <!-- Faixas Etárias Selecionadas -->
+              <div class="form-group form-full">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <label>Faixas Etárias <span class="req">*</span></label>
+                  <div style="display:flex; gap:0.5rem;">
+                    <button type="button" class="btn btn-ghost btn-xs" id="btn-select-all-faixas" style="color:var(--primary); font-weight:600;">
+                      ⚡ Selecionar Padrão ANS (10 Faixas)
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-xs" id="btn-clear-faixas" style="color:var(--text-muted);">
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+                <input type="hidden" id="inp-faixas-etarias" value="${initialFaixasStr}">
+                <div class="faixa-chips-container" id="faixas-chips-wrapper">
+                  ${BusinessRules.FAIXAS_ETARIAS_PADRAO.map(faixa => {
+                    const isChecked = selectedFaixasSet.has(faixa);
+                    return `
+                      <button type="button" class="faixa-chip ${isChecked ? 'active' : ''}" data-faixa="${faixa}">
+                        <span class="faixa-check">${isChecked ? '✓' : '+'}</span>
+                        <span>${faixa}</span>
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
               </div>
             </div>
 
-            <h4 class="form-section-title">5. Participação de Corretores (Até 3 - RN-08)</h4>
+            <h4 class="form-section-title">Participação de Corretores, Agenciamento & Vitalício (RN-08)</h4>
+            
+            <!-- Corretor 1 -->
+            <div style="background-color:rgba(0,0,0,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:1rem; margin-bottom:1rem;">
+              <div style="font-weight:700; font-size:0.85rem; margin-bottom:0.75rem; color:var(--text-primary);">
+                Corretor de Negócios 1 (Titular / Obrigatório) <span class="req">*</span>
+              </div>
+              <div class="form-grid">
+                <div class="form-group form-full">
+                  <label>Nome do Corretor 1 <span class="req">*</span></label>
+                  <input type="text" class="form-control" id="inp-corretor-1" value="${initialCorretor1}" placeholder="Nome do corretor de negócios 1" list="brokers-datalist" required>
+                </div>
+                <div class="form-group">
+                  <label>Agenciamento do Corretor 1</label>
+                  <select class="form-control" id="inp-agenciamento-1">
+                    ${BusinessRules.OPCOES_AGENCIAMENTO.map(op => `
+                      <option value="${op}" ${initialAgenc1 === op ? 'selected' : ''}>${op}</option>
+                    `).join('')}
+                    ${initialAgenc1 && !BusinessRules.OPCOES_AGENCIAMENTO.includes(initialAgenc1) ? `<option value="${initialAgenc1}" selected>${initialAgenc1}</option>` : ''}
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Vitalício do Corretor 1</label>
+                  <div class="stepper-input-group" id="stepper-group-1">
+                    <button type="button" class="stepper-btn minus" id="btn-vital-minus-1">−</button>
+                    <input type="text" class="form-control stepper-input" id="inp-vitalicio-1" value="${initialVital1}">
+                    <button type="button" class="stepper-btn plus" id="btn-vital-plus-1">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Corretor 2 -->
+            <div style="background-color:rgba(0,0,0,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:1rem; margin-bottom:1rem;">
+              <div style="font-weight:700; font-size:0.85rem; margin-bottom:0.75rem; color:var(--text-secondary);">
+                Corretor de Negócios 2 (Opcional)
+              </div>
+              <div class="form-grid">
+                <div class="form-group form-full">
+                  <label>Nome do Corretor 2</label>
+                  <input type="text" class="form-control" id="inp-corretor-2" value="${initialCorretor2}" placeholder="Nome do corretor de negócios 2 (se houver)" list="brokers-datalist">
+                </div>
+                <div class="form-group">
+                  <label>Agenciamento do Corretor 2</label>
+                  <select class="form-control" id="inp-agenciamento-2">
+                    <option value="">Nenhum agenciamento</option>
+                    ${BusinessRules.OPCOES_AGENCIAMENTO.map(op => `
+                      <option value="${op}" ${initialAgenc2 === op ? 'selected' : ''}>${op}</option>
+                    `).join('')}
+                    ${initialAgenc2 && !BusinessRules.OPCOES_AGENCIAMENTO.includes(initialAgenc2) ? `<option value="${initialAgenc2}" selected>${initialAgenc2}</option>` : ''}
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Vitalício do Corretor 2</label>
+                  <div class="stepper-input-group" id="stepper-group-2">
+                    <button type="button" class="stepper-btn minus" id="btn-vital-minus-2">−</button>
+                    <input type="text" class="form-control stepper-input" id="inp-vitalicio-2" value="${initialVital2}">
+                    <button type="button" class="stepper-btn plus" id="btn-vital-plus-2">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Corretor 3 -->
+            <div style="background-color:rgba(0,0,0,0.02); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:1rem; margin-bottom:1rem;">
+              <div style="font-weight:700; font-size:0.85rem; margin-bottom:0.75rem; color:var(--text-secondary);">
+                Corretor de Negócios 3 (Opcional)
+              </div>
+              <div class="form-grid">
+                <div class="form-group form-full">
+                  <label>Nome do Corretor 3</label>
+                  <input type="text" class="form-control" id="inp-corretor-3" value="${initialCorretor3}" placeholder="Nome do corretor de negócios 3 (se houver)" list="brokers-datalist">
+                </div>
+                <div class="form-group">
+                  <label>Agenciamento do Corretor 3</label>
+                  <select class="form-control" id="inp-agenciamento-3">
+                    <option value="">Nenhum agenciamento</option>
+                    ${BusinessRules.OPCOES_AGENCIAMENTO.map(op => `
+                      <option value="${op}" ${initialAgenc3 === op ? 'selected' : ''}>${op}</option>
+                    `).join('')}
+                    ${initialAgenc3 && !BusinessRules.OPCOES_AGENCIAMENTO.includes(initialAgenc3) ? `<option value="${initialAgenc3}" selected>${initialAgenc3}</option>` : ''}
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Vitalício do Corretor 3</label>
+                  <div class="stepper-input-group" id="stepper-group-3">
+                    <button type="button" class="stepper-btn minus" id="btn-vital-minus-3">−</button>
+                    <input type="text" class="form-control stepper-input" id="inp-vitalicio-3" value="${initialVital3}">
+                    <button type="button" class="stepper-btn plus" id="btn-vital-plus-3">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <datalist id="brokers-datalist">
+              ${appData.brokers.map(b => `<option value="${b.CORRETOR_1}">`).join('')}
+            </datalist>
+
+            <h4 class="form-section-title">Governança, Checkpoints & Observações</h4>
             <div class="form-grid">
+              <div class="form-group">
+                <label>Data de Avaliação Equipe Técnica</label>
+                <input type="text" class="form-control" id="inp-data-tecnica" value="${initialDataTecnica}" placeholder="DD/MM/AAAA">
+              </div>
+
+              <div class="form-group">
+                <label>Data de Avaliação Diretoria</label>
+                <input type="text" class="form-control" id="inp-data-diretoria" value="${initialDataDiretoria}" placeholder="DD/MM/AAAA">
+              </div>
+
               <div class="form-group form-full">
-                <label>Corretor 1 (Titular / Obrigatório) <span class="req">*</span></label>
-                <input type="text" class="form-control" id="inp-corretor-1" value="${isEdit ? (editItem.CORRETORES_1 || '') : ''}" placeholder="Nome do corretor principal" list="brokers-datalist" required>
-                <datalist id="brokers-datalist">
-                  ${appData.brokers.map(b => `<option value="${b.CORRETOR_1}">`).join('')}
-                </datalist>
+                <label>Data de Envio da Proposta ao Corretor e/ou Cliente</label>
+                <input type="text" class="form-control" id="inp-data-envio" value="${initialDataEnvio}" placeholder="DD/MM/AAAA">
               </div>
 
-              <div class="form-group">
-                <label>Corretor 2 (Opcional)</label>
-                <input type="text" class="form-control" id="inp-corretor-2" value="${isEdit ? (editItem.CORRETORES_2 || '') : ''}" placeholder="Segundo corretor" list="brokers-datalist">
-              </div>
-
-              <div class="form-group">
-                <label>Corretor 3 (Opcional)</label>
-                <input type="text" class="form-control" id="inp-corretor-3" value="${isEdit ? (editItem.CORRETORES_3 || '') : ''}" placeholder="Terceiro corretor" list="brokers-datalist">
+              <div class="form-group form-full">
+                <label>Observações</label>
+                <textarea class="form-control" id="inp-observacao" rows="3" placeholder="Informações complementares, particularidades da negociação, restrições e notas comerciais...">${initialObs}</textarea>
               </div>
             </div>
           </form>
@@ -4734,7 +5798,7 @@
 
     modal.classList.add('active');
 
-    // Lógica Reativa do Formulário
+    // Referências aos elementos do formulário
     const inpDate = modal.querySelector('#inp-date');
     const inpComp = modal.querySelector('#inp-comp');
     const inpVidas = modal.querySelector('#inp-vidas');
@@ -4742,20 +5806,178 @@
     const inpFat = modal.querySelector('#inp-faturamento');
     const inpTemp = modal.querySelector('#inp-temp');
     const groupDecline = modal.querySelector('#group-decline-reason');
+    const inpDeclineReason = modal.querySelector('#inp-decline-reason');
+    const inpDeclineDetails = modal.querySelector('#inp-decline-details');
+    const inpUf = modal.querySelector('#inp-uf');
+    const inpCidade = modal.querySelector('#inp-cidade');
+    const datalistCidade = modal.querySelector('#cities-datalist');
+    const cityStatusInfo = modal.querySelector('#city-status-info');
     const inpFator = modal.querySelector('#inp-fator');
     const groupCopart = modal.querySelector('#group-copart');
+    const inpHiddenAcomodacao = modal.querySelector('#inp-acomodacao');
+    const inpHiddenTipoContrato = modal.querySelector('#inp-tipo-contrato');
+    const inpHiddenFaixas = modal.querySelector('#inp-faixas-etarias');
+    const faixasWrapper = modal.querySelector('#faixas-chips-wrapper');
 
+    // --- 1. Carregamento Reativo de Cidades por UF (IBGE) ---
+    async function updateCitiesForUF(uf, preserveCity = '') {
+      if (!uf) return;
+      cityStatusInfo.innerHTML = `<span style="color:var(--info);">⏳ Carregando cidades de ${uf} via IBGE...</span>`;
+      try {
+        const cities = await BusinessRules.fetchCitiesByUF(uf);
+        datalistCidade.innerHTML = cities.map(c => `<option value="${c}">`).join('');
+        cityStatusInfo.innerHTML = `<span style="color:var(--success);">✓ ${cities.length} cidades disponíveis no estado de ${uf}</span>`;
+        if (preserveCity) {
+          inpCidade.value = preserveCity;
+        }
+      } catch (e) {
+        cityStatusInfo.innerHTML = `<span>⚠️ Erro ao carregar cidades. Digitação livre permitida.</span>`;
+      }
+    }
+
+    inpUf.addEventListener('change', () => {
+      inpCidade.value = '';
+      updateCitiesForUF(inpUf.value);
+    });
+
+    // Dispara carregamento inicial das cidades
+    updateCitiesForUF(inpUf.value, initialCidade);
+
+    // --- 2. Controle dos Botões de Temperatura (Legado) ---
+    const tempButtons = modal.querySelectorAll('.temp-btn');
+    tempButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tempButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const selectedTemp = btn.dataset.temp;
+        inpTemp.value = selectedTemp;
+        updateReactivity();
+      });
+    });
+
+    // --- 3. Controle dos Botões Segmentados (Acomodação) ---
+    const acomodacaoButtons = modal.querySelectorAll('#acomodacao-segmented-group .segmented-btn');
+    acomodacaoButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        acomodacaoButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        inpHiddenAcomodacao.value = btn.dataset.value;
+      });
+    });
+
+    // --- 4. Controle dos Botões Segmentados (Tipo de Contrato) ---
+    const tipoContratoButtons = modal.querySelectorAll('#tipo-contrato-segmented-group .segmented-btn');
+    tipoContratoButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tipoContratoButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        inpHiddenTipoContrato.value = btn.dataset.value;
+      });
+    });
+
+    // --- 5. Controle de Faixas Etárias Interativas ---
+    function updateFaixasHiddenInput() {
+      const activeChips = Array.from(faixasWrapper.querySelectorAll('.faixa-chip.active'));
+      const activeValues = activeChips.map(c => c.dataset.faixa);
+      inpHiddenFaixas.value = activeValues.join(' , ');
+    }
+
+    faixasWrapper.querySelectorAll('.faixa-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        chip.classList.toggle('active');
+        const checkSpan = chip.querySelector('.faixa-check');
+        if (checkSpan) {
+          checkSpan.textContent = chip.classList.contains('active') ? '✓' : '+';
+        }
+        updateFaixasHiddenInput();
+      });
+    });
+
+    const btnSelectAllFaixas = modal.querySelector('#btn-select-all-faixas');
+    if (btnSelectAllFaixas) {
+      btnSelectAllFaixas.addEventListener('click', () => {
+        faixasWrapper.querySelectorAll('.faixa-chip').forEach(chip => {
+          chip.classList.add('active');
+          const checkSpan = chip.querySelector('.faixa-check');
+          if (checkSpan) checkSpan.textContent = '✓';
+        });
+        updateFaixasHiddenInput();
+      });
+    }
+
+    const btnClearFaixas = modal.querySelector('#btn-clear-faixas');
+    if (btnClearFaixas) {
+      btnClearFaixas.addEventListener('click', () => {
+        faixasWrapper.querySelectorAll('.faixa-chip').forEach(chip => {
+          chip.classList.remove('active');
+          const checkSpan = chip.querySelector('.faixa-check');
+          if (checkSpan) checkSpan.textContent = '+';
+        });
+        updateFaixasHiddenInput();
+      });
+    }
+
+    // --- 6. Controle dos Steppers de Vitalício (% com - e +) ---
+    function configureStepper(inputEl, minusBtn, plusBtn) {
+      function parsePct(str) {
+        if (!str) return 0;
+        const cleaned = String(str).replace(/[%\s]/g, '').replace(',', '.');
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? 0 : num;
+      }
+      function formatPct(num) {
+        return `% ${num.toFixed(2).replace('.', ',')}`;
+      }
+
+      minusBtn.addEventListener('click', () => {
+        let current = parsePct(inputEl.value);
+        current = Math.max(0, Math.round((current - 0.5) * 10) / 10);
+        inputEl.value = formatPct(current);
+      });
+
+      plusBtn.addEventListener('click', () => {
+        let current = parsePct(inputEl.value);
+        current = Math.min(100, Math.round((current + 0.5) * 10) / 10);
+        inputEl.value = formatPct(current);
+      });
+
+      inputEl.addEventListener('blur', () => {
+        const val = parsePct(inputEl.value);
+        inputEl.value = formatPct(val);
+      });
+    }
+
+    configureStepper(
+      modal.querySelector('#inp-vitalicio-1'),
+      modal.querySelector('#btn-vital-minus-1'),
+      modal.querySelector('#btn-vital-plus-1')
+    );
+    configureStepper(
+      modal.querySelector('#inp-vitalicio-2'),
+      modal.querySelector('#btn-vital-minus-2'),
+      modal.querySelector('#btn-vital-plus-2')
+    );
+    configureStepper(
+      modal.querySelector('#inp-vitalicio-3'),
+      modal.querySelector('#btn-vital-minus-3'),
+      modal.querySelector('#btn-vital-plus-3')
+    );
+
+    // --- 7. Lógica Reativa Geral (Faturamento, Competência, Declínio) ---
     function updateReactivity() {
       // Recalcula Competência
       const comp = BusinessRules.calculateCompetence(inpDate.value);
-      inpComp.value = comp;
+      if (comp && (!inpComp.value || inpComp.value === BusinessRules.calculateCompetence(initialDate))) {
+        inpComp.value = comp;
+      }
 
       // Recalcula Faturamento
       const rev = BusinessRules.calculateRevenue(inpVidas.value, inpTkm.value);
       inpFat.value = rev.formatted;
 
-      // Alerta de Declínio
-      if (inpTemp.value === 'Declinado pela SB Saúde') {
+      // Exibição do grupo de declínio
+      const currentTemp = inpTemp.value;
+      if (currentTemp === 'Declinado pela SB Saúde' || currentTemp.includes('Desistência')) {
         groupDecline.style.display = 'block';
       } else {
         groupDecline.style.display = 'none';
@@ -4772,62 +5994,79 @@
     inpDate.addEventListener('input', updateReactivity);
     inpVidas.addEventListener('input', updateReactivity);
     inpTkm.addEventListener('input', updateReactivity);
-    inpTemp.addEventListener('change', updateReactivity);
     inpFator.addEventListener('change', updateReactivity);
 
     updateReactivity();
 
-    // Eventos Fechar
+    // Eventos de Fechamento
     modal.querySelector('#btn-close-modal').addEventListener('click', () => modal.classList.remove('active'));
     modal.querySelector('#btn-cancel-modal').addEventListener('click', () => modal.classList.remove('active'));
 
-    // Evento Salvar
+    // --- 8. Evento Salvar Cotação Oficial ---
     modal.querySelector('#btn-save-quote').addEventListener('click', () => {
       const empresa = modal.querySelector('#inp-empresa').value.trim();
       const corretor1 = modal.querySelector('#inp-corretor-1').value.trim();
       const temp = inpTemp.value;
-      const declineReason = modal.querySelector('#inp-decline-reason').value;
+      const declineReasonSelect = inpDeclineReason.value.trim();
+      const declineReasonDetails = inpDeclineDetails.value.trim();
+      const declineReasonFinal = declineReasonDetails || declineReasonSelect;
 
       if (!empresa) {
         alert('Por favor informe a Razão Social da Empresa.');
+        modal.querySelector('#inp-empresa').focus();
         return;
       }
       if (!corretor1) {
         alert('O primeiro corretor é obrigatório (RN-08).');
+        modal.querySelector('#inp-corretor-1').focus();
         return;
       }
 
       // Validação de Declínio (RN-06)
-      const declineValidation = BusinessRules.validateDeclineReason(temp, declineReason);
+      const declineValidation = BusinessRules.validateDeclineReason(temp, declineReasonFinal);
       if (!declineValidation.valid) {
         alert(declineValidation.error);
+        inpDeclineReason.focus();
         return;
       }
 
       const rev = BusinessRules.calculateRevenue(inpVidas.value, inpTkm.value);
-      const comp = BusinessRules.calculateCompetence(inpDate.value);
+      const comp = inpComp.value.trim() || BusinessRules.calculateCompetence(inpDate.value);
       const campaignInfo = BusinessRules.matchCampaign(comp, appData.campaignsList);
 
       const quoteObject = {
         ID: modal.querySelector('#inp-id').value,
         EMPRESA: empresa,
         CNPJ: modal.querySelector('#inp-cnpj').value.trim(),
-        UF: modal.querySelector('#inp-uf').value,
-        DATA_DA_PROSPECCAO: inpDate.value,
+        CIDADE: inpCidade.value.trim(),
+        UF: inpUf.value,
+        DATA_DA_PROSPECCAO: inpDate.value.trim(),
         COMPETENCIA: comp,
-        VIDAS: String(inpVidas.value),
+        VIDAS: String(inpVidas.value || '0'),
         TKM: BusinessRules.formatCurrency(BusinessRules.parseCurrency(inpTkm.value)),
         FATURAMENTO: rev.formatted,
         TEMPERATURA_CONTRATO: temp,
         Aptidao: BusinessRules.determineAptitude(temp),
-        Motivo_Declinio: temp === 'Declinado pela SB Saúde' ? declineReason.trim() : '',
-        Tipo_Contrato: modal.querySelector('#inp-tipo-contrato').value,
-        ACOMODACAO: modal.querySelector('#inp-acomodacao').value,
+        Motivo_Declinio: temp === 'Declinado pela SB Saúde' || temp.includes('Desistência') ? declineReasonFinal : '',
+        Tipo_Contrato: inpHiddenTipoContrato.value,
+        ACOMODACAO: inpHiddenAcomodacao.value,
+        Qnt_Faixa_Etaria: modal.querySelector('#inp-qnt-faixas').value,
+        Faixa_Etaria: inpHiddenFaixas.value,
         FATOR_MODERADOR: inpFator.value,
         POLITICA_COPARTICIPACAO: inpFator.value.includes('Coparticipação') ? modal.querySelector('#inp-politica-copart').value : '',
         CORRETORES_1: corretor1,
+        AGENCIAMENTO_1: modal.querySelector('#inp-agenciamento-1').value,
+        VITALICIO_1: modal.querySelector('#inp-vitalicio-1').value.trim(),
         CORRETORES_2: modal.querySelector('#inp-corretor-2').value.trim(),
+        AGENCIAMENTO_2: modal.querySelector('#inp-agenciamento-2').value,
+        VITALICIO_2: modal.querySelector('#inp-vitalicio-2').value.trim(),
         CORRETORES_3: modal.querySelector('#inp-corretor-3').value.trim(),
+        AGENCIAMENTO_3: modal.querySelector('#inp-agenciamento-3').value,
+        VITALICIO_3: modal.querySelector('#inp-vitalicio-3').value.trim(),
+        Data_Analise_tecnica: modal.querySelector('#inp-data-tecnica').value.trim(),
+        Data_Avaliacao_Diretoria: modal.querySelector('#inp-data-diretoria').value.trim(),
+        Data_Envio_Corretor: modal.querySelector('#inp-data-envio').value.trim(),
+        Observacao: modal.querySelector('#inp-observacao').value.trim(),
         PLANO_CAMPANHA: campaignInfo.plan,
         Status_Campanha: campaignInfo.status,
         Usuario: modal.querySelector('#inp-user').value,
@@ -4855,10 +6094,17 @@
       }
 
       saveDataStore();
+      if (window.crmSupabase?.isConnected) {
+        const targetP = isEdit ? appData.proposals.find(p => String(p.ID) === String(editItem.ID)) : quoteObject;
+        if (targetP) window.crmSupabase.saveProposal(targetP);
+      }
       modal.classList.remove('active');
       renderView();
     });
   }
+
+  // Exposição global para automações e atalhos rápidos
+  window.openNewQuoteModal = openNewQuoteModal;
 
   // 10. EXPORTAÇÃO CSV
   function exportDataCSV() {
@@ -5075,7 +6321,89 @@
   function saveAdminUsers(users) {
     localStorage.setItem('crm_admin_users', JSON.stringify(users));
     syncUserSwitch(users);
+    if (window.crmSupabase && Array.isArray(users)) {
+      if (window.crmSupabase.isConnected) {
+        users.forEach(u => window.crmSupabase.saveUser(u));
+      } else {
+        window.crmSupabase.checkConnection().then(connected => {
+          if (connected) {
+            users.forEach(u => window.crmSupabase.saveUser(u));
+          }
+        });
+      }
+    }
   }
+
+  async function syncAdminUsersWithSupabase(showToastFeedback = true) {
+    if (!window.crmSupabase) return false;
+    const btnSyncHeader = document.getElementById('btn-admin-sync-supabase');
+    const btnSyncTab = document.getElementById('btn-admin-sync-tab');
+    [btnSyncHeader, btnSyncTab].forEach(b => {
+      if (b) {
+        b.disabled = true;
+        b.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite;">🔄</span> Sincronizando...';
+      }
+    });
+
+    try {
+      const isOnline = await window.crmSupabase.checkConnection();
+      if (!isOnline) {
+        if (showToastFeedback) {
+          showToast('Supabase CLI offline (127.0.0.1:56321). Verifique se o Docker está ativo.', 'warning');
+        }
+        return false;
+      }
+
+      // 1. Enviar usuários locais para o Supabase
+      const localUsers = getAdminUsers();
+      let sentCount = 0;
+      for (const u of localUsers) {
+        const ok = await window.crmSupabase.saveUser(u);
+        if (ok) sentCount++;
+      }
+
+      // 2. Buscar usuários do Supabase e mesclar
+      const remoteUsers = await window.crmSupabase.fetchUsers();
+      if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
+        const mergedMap = new Map();
+        localUsers.forEach(u => mergedMap.set(u.login.toUpperCase(), { ...u }));
+        remoteUsers.forEach(u => mergedMap.set(u.login.toUpperCase(), { ...u }));
+        const merged = Array.from(mergedMap.values());
+        localStorage.setItem('crm_admin_users', JSON.stringify(merged));
+        syncUserSwitch(merged);
+      }
+
+      if (showToastFeedback) {
+        showToast(`Sincronização com Supabase concluída! ${sentCount} usuário(s) salvos no banco.`, 'success');
+      }
+
+      // Se estiver na aba admin, re-renderiza
+      if (state.currentTab === 'admin') {
+        const container = document.getElementById('tab-content');
+        if (container) renderAdmin(container);
+      }
+      return true;
+    } catch (err) {
+      console.error('[Supabase Sync] Erro ao sincronizar usuários:', err);
+      if (showToastFeedback) {
+        showToast('Erro ao sincronizar usuários com o Supabase.', 'error');
+      }
+      return false;
+    } finally {
+      [btnSyncHeader, btnSyncTab].forEach(b => {
+        if (b) {
+          b.disabled = false;
+          b.innerHTML = '<span>🔄</span> Sincronizar Supabase';
+        }
+      });
+    }
+  }
+  window.syncAdminUsersWithSupabase = syncAdminUsersWithSupabase;
+
+  window.addEventListener('supabase:connected', () => {
+    console.log('[CRM] Supabase reconectado. Sincronizando usuários locais automaticamente...');
+    syncAdminUsersWithSupabase(false);
+  });
 
   function syncUserSwitch(users) {
     const userSelect = document.getElementById('user-switch');
@@ -5205,6 +6533,9 @@
             <p class="admin-subtitle">Controle centralizado de acessos, provisionamento de credenciais, políticas de senha e auditoria de segurança corporativa SB Saúde.</p>
           </div>
           <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" id="btn-admin-sync-supabase" style="display:inline-flex; align-items:center; gap:6px; font-weight:600;" title="Sincronizar usuários com o banco de dados Supabase">
+              <span>🔄</span> Sincronizar Supabase
+            </button>
             <button class="btn btn-secondary btn-sm" id="btn-admin-policies" style="display:inline-flex; align-items:center; gap:6px;">
               <span>🛡️</span> Políticas de Segurança
             </button>
@@ -5310,6 +6641,10 @@
     });
 
     // Botões de Ação do Header
+    const btnSyncHeader = container.querySelector('#btn-admin-sync-supabase');
+    if (btnSyncHeader) {
+      btnSyncHeader.addEventListener('click', () => syncAdminUsersWithSupabase(true));
+    }
     const btnCreate = container.querySelector('#btn-admin-create-user');
     if (btnCreate) {
       btnCreate.addEventListener('click', openCreateUserModal);
@@ -5386,7 +6721,10 @@
               </select>
             </div>
 
-            <div>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <button class="btn btn-secondary btn-sm" id="btn-admin-sync-tab" style="font-size:0.78rem; padding:0.4rem 0.85rem; display:inline-flex; align-items:center; gap:5px;" title="Sincronizar dados da tabela com o Supabase">
+                <span>🔄</span> Sincronizar Supabase
+              </button>
               <button class="btn btn-primary btn-sm" id="btn-add-user-tab" style="font-size:0.78rem; padding:0.4rem 0.85rem;">
                 + Novo Usuário
               </button>
@@ -5513,6 +6851,11 @@
           adminViewState.statusFilter = e.target.value;
           renderUsersTab(tabContainer);
         });
+      }
+
+      const btnSyncTab = tabContainer.querySelector('#btn-admin-sync-tab');
+      if (btnSyncTab) {
+        btnSyncTab.addEventListener('click', () => syncAdminUsersWithSupabase(true));
       }
 
       const btnAddTab = tabContainer.querySelector('#btn-add-user-tab');
@@ -5962,9 +7305,14 @@
 
         usersList.push(newUser);
         saveAdminUsers(usersList);
+        if (window.crmSupabase) {
+          window.crmSupabase.saveUser(newUser).then(ok => {
+            if (ok) console.log(`[Supabase] Usuário ${login} sincronizado no banco.`);
+          });
+        }
         addAuditLog('USER_CREATE', `Criação do usuário ${login}`, 'success', `Usuário ${fullname} cadastrado com perfil ${profile}`);
         closeModal();
-        showToast(`Usuário ${login} cadastrado com sucesso!`, 'success');
+        showToast(`Usuário ${login} cadastrado e salvo com sucesso!`, 'success');
         renderAdmin(container);
       });
     }
@@ -6235,6 +7583,9 @@
       if (confirm(`Tem certeza de que deseja excluir permanentemente o usuário "${user.name}" (${user.login})? Esta ação será registrada na trilha de auditoria.`)) {
         const updated = usersList.filter(u => u.id !== userId);
         saveAdminUsers(updated);
+        if (window.crmSupabase?.isConnected) {
+          window.crmSupabase.deleteUser(user.login);
+        }
         addAuditLog('USER_DELETE', `Exclusão do usuário ${user.login}`, 'danger', `Conta de ${user.name} removida do diretório de acessos`);
         showToast(`Usuário "${user.name}" removido com sucesso!`, 'success');
         renderAdmin(container);
@@ -7451,23 +8802,34 @@
     initDataStore();
     initThemeManager();
     syncUserSwitch(getAdminUsers());
+    syncSupabaseData();
 
-    // Navegação Sidebar
+    // Navegação Global e Sidebar
+    window.navigateToTab = function(targetTab, callback) {
+      if (targetTab === 'admin' && !isMasterAdmin()) {
+        showToast('Acesso restrito: A tela de Administrador é visível exclusivamente para Administrador Master.', 'warning');
+        return;
+      }
+      if (targetTab === 'audit' && !isMasterAdmin()) {
+        showToast('Acesso restrito: A tela de Auditoria & Requisitos é visível apenas para usuários com perfil Administrador Master.', 'warning');
+        return;
+      }
+      state.currentTab = targetTab;
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.tab === targetTab);
+      });
+      const sb = document.getElementById('main-sidebar');
+      if (window.innerWidth <= 768 && sb) sb.classList.remove('open');
+      renderView();
+      if (typeof callback === 'function') {
+        setTimeout(callback, 150);
+      }
+    };
+
     document.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', (e) => {
         e.preventDefault();
-        const targetTab = item.dataset.tab;
-        if (targetTab === 'admin' && !isMasterAdmin()) {
-          showToast('Acesso restrito: A tela de Administrador é visível exclusivamente para Administrador Master.', 'warning');
-          return;
-        }
-        if (targetTab === 'audit' && !isMasterAdmin()) {
-          showToast('Acesso restrito: A tela de Auditoria & Requisitos é visível apenas para usuários com perfil Administrador Master.', 'warning');
-          return;
-        }
-        state.currentTab = targetTab;
-        if (window.innerWidth <= 768 && sidebar) sidebar.classList.remove('open');
-        renderView();
+        window.navigateToTab(item.dataset.tab);
       });
     });
 

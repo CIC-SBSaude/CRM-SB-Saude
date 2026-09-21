@@ -2267,6 +2267,344 @@ body {
   margin-top: 0.5rem;
 }
 
+/* Componentes Avançados do Formulário de Cotação (Modelo Legado) */
+.temp-selector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.temp-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border-subtle);
+  background-color: #f8fafc;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.temp-btn:hover {
+  background-color: #f1f5f9;
+  border-color: var(--border-card);
+}
+
+.temp-btn.active {
+  background-color: var(--secondary, #0f172a);
+  color: #ffffff;
+  font-weight: 600;
+  border-color: transparent;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.temp-btn.active[data-temp="Declinado pela SB Saúde"] {
+  background-color: #b91c1c !important;
+  color: #ffffff !important;
+}
+
+.temp-btn.active[data-temp="Contrato Fechado"] {
+  background-color: #15803d !important;
+  color: #ffffff !important;
+}
+
+.temp-btn.active[data-temp="Quente"] {
+  background-color: #ea580c !important;
+  color: #ffffff !important;
+}
+
+.temp-btn.active[data-temp="Morna"] {
+  background-color: #d97706 !important;
+  color: #ffffff !important;
+}
+
+.temp-btn.active[data-temp="Fria"] {
+  background-color: #0284c7 !important;
+  color: #ffffff !important;
+}
+
+.temp-btn.active[data-temp="Iniciada"] {
+  background-color: #475569 !important;
+  color: #ffffff !important;
+}
+
+.temp-btn.active[data-temp="Desistência da Empresa"],
+.temp-btn.active[data-temp="Desistência por Ausência de Retorno"] {
+  background-color: #64748b !important;
+  color: #ffffff !important;
+}
+
+/* Botões Segmentados (Acomodação / Tipo de Contrato) */
+.segmented-group {
+  display: flex;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 8px);
+  background-color: #f8fafc;
+  overflow: hidden;
+  padding: 3px;
+  gap: 3px;
+}
+
+.segmented-btn {
+  flex: 1;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  font-weight: 500;
+  border-radius: calc(var(--radius-md, 8px) - 3px);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.segmented-btn:hover {
+  color: var(--text-primary);
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.segmented-btn.active {
+  background-color: #ffffff;
+  color: var(--primary, #be123c);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Stepper de Porcentagem (Vitalício) */
+.stepper-input-group {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  width: 100%;
+}
+
+.stepper-btn {
+  width: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f1f5f9;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.stepper-btn.minus {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-right: none;
+}
+
+.stepper-btn.plus {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  border-left: none;
+}
+
+.stepper-btn:hover {
+  background-color: #e2e8f0;
+}
+
+.stepper-input {
+  border-radius: 0 !important;
+  text-align: center;
+  font-weight: 600;
+  flex: 1;
+}
+
+/* Faixas Etárias */
+.faixa-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+  padding: 0.6rem;
+  background-color: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  min-height: 48px;
+}
+
+.faixa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background-color: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.faixa-chip:hover {
+  border-color: var(--primary);
+}
+
+.faixa-chip.active {
+  background-color: var(--primary-light, #ffe4e6);
+  border-color: var(--primary, #be123c);
+  color: var(--primary, #be123c);
+  font-weight: 600;
+}
+
+.faixa-chip .faixa-check {
+  font-size: 0.75rem;
+}
+
+/* Cidade Reativa com busca IBGE */
+.city-field-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.city-status-text {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.city-status-text.loading {
+  color: var(--info, #0284c7);
+}
+
+/* Formulário de Novo Modelo de Coparticipação (Modelo Legado) */
+.copart-slider-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.copart-slider-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.copart-range-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: #cbd5e1;
+  border-radius: 4px;
+  outline: none;
+  margin: 0.5rem 0;
+  cursor: pointer;
+}
+
+.copart-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3.5px solid #be123c;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  transition: transform 0.1s ease;
+}
+
+.copart-range-input::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3.5px solid #be123c;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.copart-range-input::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.copart-image-upload-box {
+  width: 100%;
+  height: 68px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.copart-image-upload-box:hover {
+  border-color: var(--primary);
+  background-color: rgba(190, 18, 60, 0.02);
+}
+
+.copart-camera-icon {
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.copart-img-preview {
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.segmented-yes-no {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background-color: #f8fafc;
+}
+
+.segmented-yes-no button {
+  flex: 1;
+  padding: 0.75rem;
+  background: transparent;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.segmented-yes-no button:first-child {
+  border-right: 1px solid var(--border-subtle);
+}
+
+.segmented-yes-no button.active {
+  background-color: #ffffff;
+  color: var(--primary, #be123c);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 /* Flyout / Drawer Lateral de Detalhes */
 .drawer-backdrop {
   position: fixed;
@@ -2365,6 +2703,111 @@ body {
   font-weight: 700;
   color: var(--secondary);
   font-size: 0.95rem;
+}
+
+.detail-item-val-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.detail-link-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle, #cbd5e1);
+  background: #ffffff;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.detail-link-arrow:hover {
+  border-color: var(--primary, #c5112e);
+  background: rgba(197, 17, 46, 0.08);
+  color: var(--primary, #c5112e);
+  transform: translateX(2px) scale(1.08);
+}
+
+.drawer-quote-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.15rem 0 0.6rem 0;
+  margin-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.drawer-quote-pill {
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full, 9999px);
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-canvas);
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.drawer-quote-pill:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.drawer-quote-pill.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.drawer-legacy-fields-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.drawer-legacy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.drawer-legacy-field:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.drawer-legacy-label {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.drawer-legacy-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.drawer-legacy-val.multiline {
+  font-weight: 500;
+  line-height: 1.45;
+  color: #334155;
+  font-size: 0.88rem;
 }
 
 /* Timeline de Governança */
@@ -8370,6 +8813,125 @@ body {
   color: #94a3b8 !important;
 }
 
+/* Dark Mode: Controles do Formulário de Cotação */
+[data-theme="dark"] .temp-btn {
+  background-color: #070c18 !important;
+  border-color: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .temp-btn:hover {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] .temp-btn.active {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .temp-btn.active[data-temp="Declinado pela SB Saúde"] {
+  background-color: #991b1b !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .segmented-group {
+  background-color: #070c18 !important;
+  border-color: #1e293b !important;
+}
+
+[data-theme="dark"] .segmented-btn {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .segmented-btn:hover {
+  color: #f8fafc !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+[data-theme="dark"] .segmented-btn.active {
+  background-color: #1e293b !important;
+  color: #f43f5e !important;
+}
+
+[data-theme="dark"] .stepper-btn {
+  background-color: #0b111f !important;
+  border-color: #293952 !important;
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .stepper-btn:hover {
+  background-color: #16233d !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .faixa-chips-container {
+  background-color: #070c18 !important;
+  border-color: #1e293b !important;
+}
+
+[data-theme="dark"] .faixa-chip {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .faixa-chip:hover {
+  border-color: #f43f5e !important;
+}
+
+[data-theme="dark"] .faixa-chip.active {
+  background-color: rgba(244, 63, 94, 0.15) !important;
+  border-color: #f43f5e !important;
+  color: #f43f5e !important;
+}
+
+/* Dark Mode: Coparticipação */
+[data-theme="dark"] .copart-range-input {
+  background: #1e293b !important;
+}
+
+[data-theme="dark"] .copart-range-input::-webkit-slider-thumb {
+  background: #0f172a !important;
+  border-color: #f43f5e !important;
+}
+
+[data-theme="dark"] .copart-range-input::-moz-range-thumb {
+  background: #0f172a !important;
+  border-color: #f43f5e !important;
+}
+
+[data-theme="dark"] .copart-image-upload-box {
+  background-color: #070c18 !important;
+  border-color: #1e293b !important;
+}
+
+[data-theme="dark"] .copart-image-upload-box:hover {
+  border-color: #f43f5e !important;
+}
+
+[data-theme="dark"] .copart-camera-icon {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .segmented-yes-no {
+  background-color: #070c18 !important;
+  border-color: #1e293b !important;
+}
+
+[data-theme="dark"] .segmented-yes-no button {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .segmented-yes-no button:first-child {
+  border-right-color: #1e293b !important;
+}
+
+[data-theme="dark"] .segmented-yes-no button.active {
+  background-color: #1e293b !important;
+  color: #f43f5e !important;
+}
+
 [data-theme="dark"] .drawer-section {
   border-bottom-color: #1e293b !important;
 }
@@ -8384,6 +8946,46 @@ body {
 
 [data-theme="dark"] .drawer-timeline-item {
   border-left-color: #1e293b !important;
+}
+
+[data-theme="dark"] .detail-link-arrow {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .detail-link-arrow:hover {
+  background: rgba(244, 63, 94, 0.15) !important;
+  border-color: #f43f5e !important;
+  color: #f43f5e !important;
+}
+
+[data-theme="dark"] .drawer-legacy-field {
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .drawer-legacy-label {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .drawer-legacy-val {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .drawer-legacy-val.multiline {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .drawer-quote-pill {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .drawer-quote-pill.active {
+  background: #f43f5e !important;
+  border-color: #f43f5e !important;
+  color: #ffffff !important;
 }
 
 /* 10. Módulo de Relatórios (Relatórios & BI) */

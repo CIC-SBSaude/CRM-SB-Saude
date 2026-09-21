@@ -6,9 +6,14 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test/analytics.test.js && node test/reports.test.js && node test/theme.test.js"
+    "test": "node test/analytics.test.js && node test/reports.test.js && node test/theme.test.js && node test/quote_modal.test.js && node test/supabase_integration.test.js",
+    "migrate": "node scripts/migrate.js"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
+    "pg": "^8.23.0"
+  }
 }
