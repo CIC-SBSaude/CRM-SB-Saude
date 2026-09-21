@@ -1,0 +1,2306 @@
+{
+  "Ano Novo 2024": {
+    "total": 19,
+    "totalVidas": 4596,
+    "avgTkm": 197.69315789473683,
+    "totalFat": 2556507.56,
+    "statuses": {
+      "Campanha Encerrada": 19
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 15,
+      "Contrato Fechado": 4
+    },
+    "topUfs": [
+      [
+        "BA",
+        10
+      ],
+      [
+        "SP",
+        6
+      ],
+      [
+        "PE",
+        2
+      ],
+      [
+        "MA",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Unit",
+        11
+      ],
+      [
+        "Via Cadastro",
+        3
+      ],
+      [
+        "Edvan",
+        2
+      ],
+      [
+        "Peer Saúde",
+        1
+      ],
+      [
+        "Confiança",
+        1
+      ],
+      [
+        "MDS",
+        1
+      ]
+    ],
+    "empresas": [
+      "SEG LIFE GESTAO EM SEGURANCA PRIVADA LTDA",
+      "VIA SUDESTE TRANSPORTES S A",
+      "ESCOLA BAIANA DE ADMINISTRAÇÃO",
+      "PLANSUL PLANEJAMENTO E CONSULTORIA LTDA",
+      "FIBRASA S.A",
+      "ASSOC DOS FUNC PUBL DO MUNICIPIO JANDIRA",
+      "GESTOR SERVICOS",
+      "Expresso Nepomuceno S/A",
+      "COTEMON CONSTRUCOES TUBULACOES E MONTAGENS INDUSTRIAIS LTDA",
+      "INDUSTRIA BAIANA DE VIDROS LTDA"
+    ]
+  },
+  "Carnaval 2024": {
+    "total": 18,
+    "totalVidas": 4088,
+    "avgTkm": 177.03111111111113,
+    "totalFat": 5889443.0200000005,
+    "statuses": {
+      "Campanha Encerrada": 18
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 13,
+      "Contrato Fechado": 5
+    },
+    "topUfs": [
+      [
+        "SP",
+        10
+      ],
+      [
+        "BA",
+        3
+      ],
+      [
+        "MA",
+        2
+      ],
+      [
+        "PE",
+        2
+      ],
+      [
+        "PR",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Unit",
+        8
+      ],
+      [
+        "Via Cadastro",
+        4
+      ],
+      [
+        "Edvan",
+        2
+      ],
+      [
+        "Sieg",
+        1
+      ],
+      [
+        "MDS",
+        1
+      ],
+      [
+        "Ferraro",
+        1
+      ],
+      [
+        "Busque",
+        1
+      ]
+    ],
+    "empresas": [
+      "ATLÂNTICA SEGURANÇA PRIVADA",
+      "JUMPER SEGURANCA E VIGILANCIA PATRIMONIAL LTDA",
+      "7C SEGURANCA E VIGILANCIA LTDA",
+      "BASTO MESQUITA",
+      "CENTURIAO SEGURANCA PATRIMONIAL LTDA",
+      "CAMATEX CONFECCOES LTDA",
+      "TELLUS INFORMATICA E TELECOMUNICACOES LTDA",
+      "CONSOLIS SOLUCOES INTELIG LTDA",
+      "NEOBAND SOLUCOES",
+      "H LOUIS BAXMANN PRODUTOS METALÚRGICOS"
+    ]
+  },
+  "Março 2024": {
+    "total": 16,
+    "totalVidas": 2158,
+    "avgTkm": 195.9625,
+    "totalFat": 930101.8300000002,
+    "statuses": {
+      "Campanha Encerrada": 16
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 8,
+      "Contrato Fechado": 8
+    },
+    "topUfs": [
+      [
+        "SP",
+        7
+      ],
+      [
+        "PE",
+        6
+      ],
+      [
+        "BA",
+        2
+      ],
+      [
+        "MA",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        6
+      ],
+      [
+        "Unit",
+        3
+      ],
+      [
+        "Edvan",
+        2
+      ],
+      [
+        "Hub Health",
+        2
+      ],
+      [
+        "Mais Saúde",
+        1
+      ],
+      [
+        "Adailton",
+        1
+      ],
+      [
+        "Confiança",
+        1
+      ]
+    ],
+    "empresas": [
+      "MUNICÍPIO DE ALAGOINHAS - BAHIA",
+      "SINDICATO DA IND DE PANIFICACAO E CONFEITARIA DO EST PE",
+      "T G PONTES TRANSPORTES LTDA",
+      "ASSOCIACAO DOS VIGILANTES E PORTEIROS, ATIVOS E APOSENTADOS DO ESTADO DE PERNAMBUCO",
+      "PROTEMAXI SEGURANÇA PATRIMONIAL",
+      "NORAL NORDESTE ALUMINIO LTDA",
+      "ENGECAMPO ENGENHARIA S/A",
+      "MAIS HOTEL",
+      "A2DPS SEGURANÇA E PORTARIA LTDA",
+      "JMC SERVIÇOS E TERCEIRIZAÇÕES LTDA"
+    ]
+  },
+  "Pascoa 2024": {
+    "total": 23,
+    "totalVidas": 5950,
+    "avgTkm": 183.3895652173913,
+    "totalFat": 1128348.53,
+    "statuses": {
+      "Campanha Encerrada": 23
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 17,
+      "Contrato Fechado": 6
+    },
+    "topUfs": [
+      [
+        "SP",
+        12
+      ],
+      [
+        "MA",
+        6
+      ],
+      [
+        "BA",
+        2
+      ],
+      [
+        "RN",
+        1
+      ],
+      [
+        "PE",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Gapseg",
+        6
+      ],
+      [
+        "Via Cadastro",
+        6
+      ],
+      [
+        "Unit",
+        4
+      ],
+      [
+        "Itsseg",
+        2
+      ],
+      [
+        "MDS",
+        1
+      ],
+      [
+        "Marcio Lima",
+        1
+      ],
+      [
+        "W3G",
+        1
+      ],
+      [
+        "Patricia Carvalho",
+        1
+      ],
+      [
+        "Rohi",
+        1
+      ]
+    ],
+    "empresas": [
+      "LE JAZZ BAR E RESTAURANTE LTDA",
+      "VIKSERVICES OUTSOURCING S.A",
+      "CENTRO COMERCIAL ALPHAVILLE (funcionários CLT)",
+      "SINDICATO DOS TRABALHADORES DE PROCESSAMENTO DE DADOS,SERVIÇOS DE INFORMÁTICA E SIMILARES DO ESTADO DO RIO GRANDE DO NORTE",
+      "AVANCA SOLUCOES E SERVICOS LTDA",
+      "CAPRICCHE S.A",
+      "FOUR RUBBER INDÚSTRIA E COMERCIO DE BORRACHAS E PLASTICO LTDA",
+      "GLOBAL SERVIÇOS E COMERCIO LTDA",
+      "GLOBALTECH BRASIL LTDA",
+      "IMAX SERVIÇOS LTDA"
+    ]
+  },
+  "Maio 2024": {
+    "total": 45,
+    "totalVidas": 5285,
+    "avgTkm": 216.3977777777778,
+    "totalFat": 4247786.470000002,
+    "statuses": {
+      "Campanha Encerrada": 45
+    },
+    "temperaturas": {
+      "Contrato Fechado": 14,
+      "Desistência da Empresa": 31
+    },
+    "topUfs": [
+      [
+        "BA",
+        20
+      ],
+      [
+        "SP",
+        20
+      ],
+      [
+        "PE",
+        3
+      ],
+      [
+        "MA",
+        1
+      ],
+      [
+        "PB",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        10
+      ],
+      [
+        "W3G",
+        5
+      ],
+      [
+        "Sb",
+        3
+      ],
+      [
+        "Confiança",
+        2
+      ],
+      [
+        "Fidelitas",
+        2
+      ],
+      [
+        "M&D",
+        2
+      ],
+      [
+        "Aratu Seguros",
+        2
+      ],
+      [
+        "Unit",
+        2
+      ],
+      [
+        "MDS",
+        2
+      ],
+      [
+        "Gapseg",
+        2
+      ]
+    ],
+    "empresas": [
+      "ITS",
+      "SERMAC",
+      "COTEMON",
+      "ANKARA",
+      "CAVALO MARINHO COMBUSTIVEIS",
+      "CAVALO MARINHO COMBUSTIVEIS LOG E DIST",
+      "REDE NOVO MIX",
+      "TROPICAL MensalidadeIENTAL RESIDUOS LTDA",
+      "CTA TREINAMENTO ASSESSORIA E SERVICOS COORP",
+      "AGENCIA MARITIMA E TRANSPORTES LUMAR LTDA"
+    ]
+  },
+  "São João 2024": {
+    "total": 91,
+    "totalVidas": 10607,
+    "avgTkm": 196.5093406593407,
+    "totalFat": 25506148.96,
+    "statuses": {
+      "Campanha Encerrada": 91
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 74,
+      "Contrato Fechado": 17
+    },
+    "topUfs": [
+      [
+        "BA",
+        35
+      ],
+      [
+        "SP",
+        30
+      ],
+      [
+        "PB",
+        10
+      ],
+      [
+        "MA",
+        6
+      ],
+      [
+        "PE",
+        6
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        15
+      ],
+      [
+        "Hub Health",
+        14
+      ],
+      [
+        "Gapseg",
+        8
+      ],
+      [
+        "Mais Saúde",
+        8
+      ],
+      [
+        "Auster",
+        8
+      ],
+      [
+        "Unit",
+        6
+      ],
+      [
+        "Confiança",
+        4
+      ],
+      [
+        "Aratu Seguros",
+        4
+      ],
+      [
+        "Linkpj",
+        4
+      ],
+      [
+        "W3G",
+        3
+      ]
+    ],
+    "empresas": [
+      "ÔMEGA SERVIÇOS DE MONTAGENS INDÚSTRIAS",
+      "G P TRANSPORTES LTDA",
+      "CARDOSO E HADDAD SERVIÇOS CONTABEIS E COMERCIO",
+      "LV CASTRO ENGENHARIA E INSPEÇÃO INDUSTRIAL EIRELI",
+      "SECRETARIA DE MEIO MensalidadeIENTE INFRAESTRUTURA E LOGISTICA",
+      "PIEDADE CAMARA MUNICIPAL",
+      "INST. DE PREV. DOS SERV. PUBLICOS MUN. DE HORTOLANDIA",
+      "ANCORA MANUTENCAO E SERVIÇOS LTDA",
+      "DBL INDÚSTRIA E COMERCIO DE BEBIDAS E EMBALAGENS",
+      "INSTITUTO DE PREVIDÊNCIA DE SANTO ANDRÉ"
+    ]
+  },
+  "Julho 2024": {
+    "total": 62,
+    "totalVidas": 9804,
+    "avgTkm": 191.78048387096777,
+    "totalFat": 4568577.4,
+    "statuses": {
+      "Campanha Encerrada": 62
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 49,
+      "Contrato Fechado": 12,
+      "Declinado pela SB Saúde": 1
+    },
+    "topUfs": [
+      [
+        "BA",
+        25
+      ],
+      [
+        "SP",
+        20
+      ],
+      [
+        "PE",
+        10
+      ],
+      [
+        "AM",
+        4
+      ],
+      [
+        "PB",
+        3
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Magno",
+        25
+      ],
+      [
+        "Via Cadastro",
+        11
+      ],
+      [
+        "Aratu Seguros",
+        3
+      ],
+      [
+        "Soseg",
+        3
+      ],
+      [
+        "Auster",
+        2
+      ],
+      [
+        "Natuseg",
+        2
+      ],
+      [
+        "MDS",
+        2
+      ],
+      [
+        "Josefa",
+        2
+      ],
+      [
+        "MMG",
+        2
+      ],
+      [
+        "Texas",
+        1
+      ]
+    ],
+    "empresas": [
+      "TORRE EMPREENDIMENTOS RURAL E CONSTRUCAO LTDA",
+      "ESTILO SOLUÇOES EMPRESARIAIS",
+      "BOARDTEC DO BRASIL LTDA",
+      "URT SERVICOS DE MANUTENCAO E CONSERVACAO",
+      "INSTITUTO NACIONAL DE DESENVOLVIMENTO SOCIAL E HUMANO - INDSH",
+      "BOTECO 27 BAR",
+      "GALLOTTI EMPREENDIMENTOS E SERVIÇOS",
+      "AEC CENTRO DE CONTATOS S/A",
+      "ASSOCIACAO DOS GUARDAS MUNICIPAIS DO CABO DE SANTO AGOSTINHO ASGUAMC",
+      "ASSOCIACAO DOS VIGILANTES E PORTEIROS, ATIVOS E APOSENTADOS DO ESTADO DE PERNMensalidadeUCO -ASSVP-PE"
+    ]
+  },
+  "Agosto 2024": {
+    "total": 48,
+    "totalVidas": 4693,
+    "avgTkm": 197.2939583333333,
+    "totalFat": 950541.5,
+    "statuses": {
+      "Campanha Encerrada": 48
+    },
+    "temperaturas": {
+      "Declinado pela SB Saúde": 1,
+      "Desistência da Empresa": 30,
+      "Contrato Fechado": 17
+    },
+    "topUfs": [
+      [
+        "BA",
+        25
+      ],
+      [
+        "SP",
+        20
+      ],
+      [
+        "AM",
+        1
+      ],
+      [
+        "PE",
+        1
+      ],
+      [
+        "PB",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        15
+      ],
+      [
+        "Soseg",
+        6
+      ],
+      [
+        "W3G",
+        3
+      ],
+      [
+        "Apolizza",
+        2
+      ],
+      [
+        "Sb",
+        2
+      ],
+      [
+        "Linkpj",
+        2
+      ],
+      [
+        "Unit",
+        2
+      ],
+      [
+        "Repgen",
+        1
+      ],
+      [
+        "5B",
+        1
+      ],
+      [
+        "Texas",
+        1
+      ]
+    ],
+    "empresas": [
+      "CONSTRUTORA ELOS ENGENHARIA LTDA",
+      "AJR INDUSTRIA & COMERCIO DE MATERIAL PARA CONSTRUÇÃO CIVIL",
+      "FERREIRA COSTA & CIA LTDA",
+      "REDE BRASILEIRA DE DIAGNOSTICOS",
+      "AL COMERCIO E ATACADO DE ALIMENTOS LTDA",
+      "CSP INDUSTRIA E COMERCIO DE SACOS DE PAPEIS E PLASTICOS LTDA",
+      "REFRIAL DISTRIBUIDORA COMERCIAL DE MAQUINAS E PEÇAS LTDA",
+      "CASA BMensalidadeINI",
+      "LUNA ROSA ITALIAN FOOD LTDA",
+      "ABRIGO SALVADOR"
+    ]
+  },
+  "Setembro Amarelo 2024": {
+    "total": 39,
+    "totalVidas": 4047,
+    "avgTkm": 186.7123076923077,
+    "totalFat": 1449399.7899999998,
+    "statuses": {
+      "Campanha Encerrada": 39
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 22,
+      "Contrato Fechado": 16,
+      "Fria": 1
+    },
+    "topUfs": [
+      [
+        "BA",
+        16
+      ],
+      [
+        "SP",
+        15
+      ],
+      [
+        "PE",
+        5
+      ],
+      [
+        "PB",
+        3
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        13
+      ],
+      [
+        "Magno",
+        12
+      ],
+      [
+        "Unit",
+        4
+      ],
+      [
+        "Hub Health",
+        3
+      ],
+      [
+        "Josefa",
+        3
+      ],
+      [
+        "Alonso",
+        1
+      ],
+      [
+        "Auster",
+        1
+      ],
+      [
+        "Jocross",
+        1
+      ],
+      [
+        "Apolizza",
+        1
+      ]
+    ],
+    "empresas": [
+      "RESTAURANTE KAM SUSHI LTDA",
+      "KANDANGO CATEDRAL",
+      "WD CONSTRUÇÃO DE MONTAGEM LTDA",
+      "TRANSPOLO",
+      "MASTER SERVICO DE ESCRITORIO DE ADMNISTRACAO LTDA",
+      "ARQTEC ENGENHARIA LTDA",
+      "UEHARA APOIO ADMNISTRATIVO LTDA",
+      "IPM INDUSTRIA DE PRODUTOS METALURGICOS LTDA",
+      "BMF ENGENHARIA",
+      "SINDICATO DOS TRABALHADORES EM EMPRESAS DE TRANSPORTE METROVIARIOS E CONEXOS DO ESTADO DE PERNMensalidadeUCO"
+    ]
+  },
+  "Outubro Rosa 2024": {
+    "total": 62,
+    "totalVidas": 9583,
+    "avgTkm": 199.2335483870968,
+    "totalFat": 4266299.809999999,
+    "statuses": {
+      "Campanha Encerrada": 62
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 41,
+      "Declinado pela SB Saúde": 5,
+      "Fria": 3,
+      "Contrato Fechado": 13
+    },
+    "topUfs": [
+      [
+        "BA",
+        33
+      ],
+      [
+        "SP",
+        18
+      ],
+      [
+        "PE",
+        5
+      ],
+      [
+        "PB",
+        3
+      ],
+      [
+        "MA",
+        2
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        12
+      ],
+      [
+        "Aratu Seguros",
+        8
+      ],
+      [
+        "Hub Health",
+        5
+      ],
+      [
+        "W3G",
+        5
+      ],
+      [
+        "Unit",
+        4
+      ],
+      [
+        "MDS",
+        4
+      ],
+      [
+        "Freud Melo",
+        3
+      ],
+      [
+        "Sb Saude",
+        2
+      ],
+      [
+        "Fabiane Costa",
+        2
+      ],
+      [
+        "Bruno Edelweiss",
+        2
+      ]
+    ],
+    "empresas": [
+      "UHT INVESTIMENTOS PARTICIPACOES E EMPREENDIMENTOS LTDA",
+      "CMT INDUSTRIA E COMERCIO DE MOVEIS",
+      "MAX SERVICOS ASSESORIA EMPRESARIAL",
+      "CLINIPAR SEVICOS MEDICOS LTDA",
+      "WORLD SIGN COMERCIO LTDA",
+      "SINDICATO DOS ESTIVADORES NOS PORTOS DO ESTADO DE PERNMensalidadeUCO",
+      "CH MINERAÇÃO E COMERCIO DE MINERIOS LTDA",
+      "CONDOMINIO PATIO JARDINS",
+      "NMS SERVICOS LTDA",
+      "PRIME CONECT LTDA"
+    ]
+  },
+  "Novembro Azul 2024": {
+    "total": 50,
+    "totalVidas": 8790,
+    "avgTkm": 212.03959999999992,
+    "totalFat": 2026842.96,
+    "statuses": {
+      "Campanha Encerrada": 50
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 33,
+      "Contrato Fechado": 15,
+      "Quente": 1,
+      "Declinado pela SB Saúde": 1
+    },
+    "topUfs": [
+      [
+        "BA",
+        22
+      ],
+      [
+        "SP",
+        18
+      ],
+      [
+        "PB",
+        3
+      ],
+      [
+        "PE",
+        3
+      ],
+      [
+        "AM",
+        2
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        12
+      ],
+      [
+        "Unit",
+        6
+      ],
+      [
+        "W3G",
+        6
+      ],
+      [
+        "MDS",
+        4
+      ],
+      [
+        "AON",
+        2
+      ],
+      [
+        "Jocross",
+        2
+      ],
+      [
+        "Assure Corretora",
+        2
+      ],
+      [
+        "Cesar",
+        2
+      ],
+      [
+        "Sb Saude",
+        2
+      ],
+      [
+        "Correta Seguros",
+        2
+      ]
+    ],
+    "empresas": [
+      "RF ATACADO DE ALIMENTOS",
+      "SUPERMIX CONCRETO SA",
+      "ADEPOM",
+      "KATIA CILENE CARNEIRO DE OLIVEIRA",
+      "SPEEDMAIS SOLUCOES LTDA",
+      "FAST SHOP S.A",
+      "STEFANINI CONSULTORIA E ASSESSORIA EM INFORMATICA SA",
+      "OUTBACK",
+      "SWISSPORT BRASIL LTDA",
+      "NUTRISERVICE REFEICOES COLETIVAS LTDA"
+    ]
+  },
+  "Encerramento 2024": {
+    "total": 31,
+    "totalVidas": 3898,
+    "avgTkm": 210.56129032258065,
+    "totalFat": 796213.92,
+    "statuses": {
+      "Campanha Encerrada": 31
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 16,
+      "Quente": 1,
+      "Contrato Fechado": 9,
+      "Declinado pela SB Saúde": 5
+    },
+    "topUfs": [
+      [
+        "SP",
+        14
+      ],
+      [
+        "BA",
+        11
+      ],
+      [
+        "MA",
+        3
+      ],
+      [
+        "CE",
+        1
+      ],
+      [
+        "AM",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        7
+      ],
+      [
+        "Edvan",
+        3
+      ],
+      [
+        "Aratu Seguros",
+        2
+      ],
+      [
+        "Marsh",
+        1
+      ],
+      [
+        "Trafor",
+        1
+      ],
+      [
+        "Horiens",
+        1
+      ],
+      [
+        "Adcplasp",
+        1
+      ],
+      [
+        "Unit",
+        1
+      ],
+      [
+        "Superseg Corretora",
+        1
+      ],
+      [
+        "Assure Corretora",
+        1
+      ]
+    ],
+    "empresas": [
+      "YACHT CLUBE DA BAHIA",
+      "BYD AUTO DO BRASIL LTDA",
+      "MEM SERVIÇOS DE LIMPEZA E CONSERVAÇAO LTDA",
+      "OEC",
+      "G5 SOLUCOES LOGISTIC E TRANSPORTE LTDA",
+      "INFINITY SERVICOS E GESTAO EMPRESARIAL LTDA",
+      "DBL INDÚSTRIA E COMERCIO DE BEBIDAS E EMBALAGENS",
+      "MULTICRED PROMOTORA DE VENDAS E SERVIÇOS LTDA",
+      "RIZOMA ENGENHARIA PAISAGISMO E SERVICOS LTDA",
+      "BRINDES TIP LTDA"
+    ]
+  },
+  "Outubro Rosa 2025": {
+    "total": 34,
+    "totalVidas": 4545,
+    "avgTkm": 253.23529411764707,
+    "totalFat": 2121440,
+    "statuses": {
+      "Campanha Encerrada": 34
+    },
+    "temperaturas": {
+      "Contrato Fechado": 2,
+      "Iniciada": 28,
+      "Declinado pela SB Saúde": 4
+    },
+    "topUfs": [
+      [
+        "BA",
+        23
+      ],
+      [
+        "MA",
+        4
+      ],
+      [
+        "PE",
+        4
+      ],
+      [
+        "SP",
+        2
+      ],
+      [
+        "RN",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Edvan",
+        4
+      ],
+      [
+        "Natuseg",
+        3
+      ],
+      [
+        "Iva Lazaro",
+        2
+      ],
+      [
+        "Inovare",
+        2
+      ],
+      [
+        "Apolizza",
+        2
+      ],
+      [
+        "Auster",
+        2
+      ],
+      [
+        "Aratu Seguros",
+        2
+      ],
+      [
+        "Assiste",
+        2
+      ],
+      [
+        "Hub Health",
+        2
+      ],
+      [
+        "Freud Melo",
+        1
+      ]
+    ],
+    "empresas": [
+      "BIONICA TRANSPORTE E TURISMO MARITIMO REGIONAL LTDA",
+      "POTIGUAR MATERIAIS DE CONSTRUÇÃO S.A",
+      "LYNKZ - VIEIRA BRASIL",
+      "TRANSPORTADORA ROLIM LTDA",
+      "A.C. DE SOUZA TEIXEIRA E CIA LTDA",
+      "CHIACCHIO INDUSTRIA DE EMBALAGENS LTDA",
+      "NMS SERVIÇOS LTDA",
+      "ELVIS ENGENHARIA LTDA",
+      "LABORATORIO DE ANALISES CLINICAS JAIME FELIX CERQUEIRA LTDA",
+      "TRIX MIRIM ALIMENTAÇÃO ESCOLAR LTDA"
+    ]
+  },
+  "Ano Novo 2025": {
+    "total": 22,
+    "totalVidas": 4359,
+    "avgTkm": 221.91772727272726,
+    "totalFat": 2103994.3,
+    "statuses": {
+      "Campanha Encerrada": 22
+    },
+    "temperaturas": {
+      "Desistência da Empresa": 2,
+      "Contrato Fechado": 6,
+      "Fria": 2,
+      "Iniciada": 7,
+      "Declinado pela SB Saúde": 5
+    },
+    "topUfs": [
+      [
+        "SP",
+        12
+      ],
+      [
+        "BA",
+        8
+      ],
+      [
+        "PE",
+        1
+      ],
+      [
+        "RN",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        4
+      ],
+      [
+        "Mais Negócios",
+        2
+      ],
+      [
+        "W3G",
+        2
+      ],
+      [
+        "Unit",
+        2
+      ],
+      [
+        "MDS",
+        1
+      ],
+      [
+        "Alper",
+        1
+      ],
+      [
+        "Edvan",
+        1
+      ],
+      [
+        "MMG",
+        1
+      ],
+      [
+        "Paulo Tosta",
+        1
+      ],
+      [
+        "Beplus",
+        1
+      ]
+    ],
+    "empresas": [
+      "CONCRETA TECNOLOGIA EM ENGENHARIA LTDA",
+      "ATAKAREJO DISTRIBUIDORA DE ALIMENTOS E BEBIDAS S/A",
+      "NOVA BRINK INDUSTRIA DE PLASTICOS LTDA",
+      "PIKURRUCHA'S COMERCIO DE DOCES GOURMET LTDA",
+      "R Y COSMETICOS LTDA",
+      "FCG TRANSPORTES E LOGISTICA LTDA",
+      "SINDICATO DOS SERVIDORES DO MUN DE CANDEIAS",
+      "ULTRA BROS PARTICIPANTES LTDA",
+      "CONDOMINIO EDIFICIO ONDINA APART HOTEL E RESIDENCIA",
+      "PROMEX MAIS COM IMPORTAÇÃO E EXPORTAÇÃO LTDA"
+    ]
+  },
+  "Carnaval 2025": {
+    "total": 48,
+    "totalVidas": 6632,
+    "avgTkm": 209.10458333333327,
+    "totalFat": 4730751.100000001,
+    "statuses": {
+      "Campanha Encerrada": 48
+    },
+    "temperaturas": {
+      "Iniciada": 20,
+      "Fria": 2,
+      "Contrato Fechado": 14,
+      "Desistência da Empresa": 3,
+      "Declinado pela SB Saúde": 8,
+      "Morna": 1
+    },
+    "topUfs": [
+      [
+        "BA",
+        20
+      ],
+      [
+        "SP",
+        19
+      ],
+      [
+        "MA",
+        3
+      ],
+      [
+        "PE",
+        3
+      ],
+      [
+        "PB",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        13
+      ],
+      [
+        "Aratu Seguros",
+        3
+      ],
+      [
+        "Auster",
+        3
+      ],
+      [
+        "Alper",
+        2
+      ],
+      [
+        "Terra Viva Corretora De Seguros Ltda",
+        2
+      ],
+      [
+        "Iva Lazaro",
+        2
+      ],
+      [
+        "Edvan",
+        2
+      ],
+      [
+        "Assure Corretora",
+        2
+      ],
+      [
+        "Zf Comercio E Serviço",
+        2
+      ],
+      [
+        "Apolizza",
+        2
+      ]
+    ],
+    "empresas": [
+      "V.S. DISTRIBUIDORA LTDA",
+      "CHEMITEC AGRO VETERINARIA LTDA",
+      "SUPERMERCADO MANAIRA LTDA",
+      "GRANEL QUIMICA LTDA",
+      "CONDOMINIO PATIO JARDINS",
+      "RUBY SERVICES TERCEIRIZAÇÃO DE SERVICOS LTDA",
+      "MONSERTEC ENGENHARIA LTDA",
+      "REDEMIX COMERCIO DE GENEROS ALIMENTOS",
+      "CONSORCIO PUBLICO INTERFEDERATIVO DE SAUDE DA REGIAO DE ALAGOINHAS",
+      "SANTA FÉ ENERGETICA"
+    ]
+  },
+  "Março 2025": {
+    "total": 47,
+    "totalVidas": 6523,
+    "avgTkm": 297.60702127659573,
+    "totalFat": 2254929.26,
+    "statuses": {
+      "Campanha Encerrada": 47
+    },
+    "temperaturas": {
+      "Iniciada": 25,
+      "Desistência da Empresa": 4,
+      "Declinado pela SB Saúde": 7,
+      "Contrato Fechado": 10,
+      "Fria": 1
+    },
+    "topUfs": [
+      [
+        "SP",
+        19
+      ],
+      [
+        "BA",
+        16
+      ],
+      [
+        "MA",
+        4
+      ],
+      [
+        "PB",
+        3
+      ],
+      [
+        "AM",
+        3
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        9
+      ],
+      [
+        "Hub Health",
+        6
+      ],
+      [
+        "Auster",
+        3
+      ],
+      [
+        "Aratu Seguros",
+        2
+      ],
+      [
+        "W3G",
+        2
+      ],
+      [
+        "Atos Corretora",
+        2
+      ],
+      [
+        "Vital Beneficios",
+        1
+      ],
+      [
+        "João",
+        1
+      ],
+      [
+        "Lockton",
+        1
+      ],
+      [
+        "Simgular",
+        1
+      ]
+    ],
+    "empresas": [
+      "PODIUM ALIMENTOS",
+      "ML 7 EMPREENDIMENTOS IMOBILIARIOS SPE LTDA",
+      "SUPERMERCADO NORDESTÃO LTDA",
+      "MULTI IMAGEM LTDA",
+      "BASTO MESQUITA",
+      "SÃO BRAZ S A INDUSTRIA E COMERCIO DE ALIMENTOS",
+      "UNIT8 SERVIÇOS ESPECIALIZADOS LTDA",
+      "DIEFRA ENGENHARIA E CONSULTORIA LTDA",
+      "BAGERTECH COMERCIO E MANUTENÇÃO DE EQUIPAMENTOS INDUSTRIAIS LTDA",
+      "QWS"
+    ]
+  },
+  "Pascoa 2025": {
+    "total": 49,
+    "totalVidas": 6500,
+    "avgTkm": 237.11244897959187,
+    "totalFat": 5043111.450000001,
+    "statuses": {
+      "Campanha Encerrada": 49
+    },
+    "temperaturas": {
+      "Iniciada": 25,
+      "Declinado pela SB Saúde": 5,
+      "Desistência da Empresa": 5,
+      "Contrato Fechado": 8,
+      "Morna": 3,
+      "Fria": 2,
+      "Quente": 1
+    },
+    "topUfs": [
+      [
+        "BA",
+        22
+      ],
+      [
+        "SP",
+        17
+      ],
+      [
+        "MA",
+        3
+      ],
+      [
+        "PB",
+        3
+      ],
+      [
+        "AM",
+        2
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Via Cadastro",
+        6
+      ],
+      [
+        "Hub Health",
+        5
+      ],
+      [
+        "Assure Corretora",
+        3
+      ],
+      [
+        "W3G",
+        3
+      ],
+      [
+        "Confiança",
+        3
+      ],
+      [
+        "Alper",
+        2
+      ],
+      [
+        "Guedes Maia",
+        2
+      ],
+      [
+        "Unit",
+        2
+      ],
+      [
+        "Aratu Seguros",
+        2
+      ],
+      [
+        "Inovare",
+        2
+      ]
+    ],
+    "empresas": [
+      "CREDI SHOP S/A",
+      "COTECNA SERVIÇOS LTDA",
+      "SERVENG CIVILSAN S A EMPRESAS ASSOCIADAS DE ENGENHARIA",
+      "MMS",
+      "STICLE TEXTIL LTDA",
+      "ARGET LOGISTICA E TRANSPORTES LTDA",
+      "PORTO ITACIMIRIM CONSTRUÇÃO E INCORPOTAÇÃO",
+      "MIRASOL TRANSPORTE E ARMAZENAGEM",
+      "VAP AMBIENTAL",
+      "CTA GROUP LTDA"
+    ]
+  },
+  "Maio 2025": {
+    "total": 52,
+    "totalVidas": 12033,
+    "avgTkm": 229.87307692307692,
+    "totalFat": 3084798.3,
+    "statuses": {
+      "Campanha Encerrada": 52
+    },
+    "temperaturas": {
+      "Iniciada": 27,
+      "Fria": 8,
+      "Declinado pela SB Saúde": 7,
+      "Desistência da Empresa": 3,
+      "Morna": 1,
+      "Contrato Fechado": 5,
+      "Quente": 1
+    },
+    "topUfs": [
+      [
+        "BA",
+        23
+      ],
+      [
+        "SP",
+        12
+      ],
+      [
+        "PE",
+        8
+      ],
+      [
+        "MA",
+        4
+      ],
+      [
+        "PB",
+        3
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Jocross",
+        4
+      ],
+      [
+        "Assure Corretora",
+        4
+      ],
+      [
+        "Edvan",
+        3
+      ],
+      [
+        "W3G",
+        3
+      ],
+      [
+        "Freud Melo",
+        3
+      ],
+      [
+        "Via Cadastro",
+        3
+      ],
+      [
+        "Itsseg",
+        2
+      ],
+      [
+        "Auster",
+        2
+      ],
+      [
+        "MDS",
+        2
+      ],
+      [
+        "Mais Negócios",
+        2
+      ]
+    ],
+    "empresas": [
+      "CEUMA- ASSOCIACAO DE ENSINO SUPERIOR",
+      "SESE LOGISTICA DO BRASIL LTDA",
+      "FERTIMAXI INDUSTRIA, COMERCIO E SERVIÇOS DE FERTILIZANTES LTDA",
+      "APLIKE PRODUTOS ADESIVOS LTDA",
+      "VAREJÃO DOS MEDICAMENTOS",
+      "MITRA DIOSESANA DE CAMPO LIMPO",
+      "EDIFICIO MANSÃO PROFESSOR JOSE SILVEIRA",
+      "ORGUS INDUSTRIA E COMERCIO LTDA",
+      "POLAR FIX INDUSTRIA E COMERCIO DE PRODUTOS HOSPITALARES LTDA",
+      "KAFER RIP SERVICOS INDUSTRIAIS LTDA"
+    ]
+  },
+  "São João 2025": {
+    "total": 38,
+    "totalVidas": 5126,
+    "avgTkm": 215.94263157894736,
+    "totalFat": 2804848.52,
+    "statuses": {
+      "Campanha Encerrada": 38
+    },
+    "temperaturas": {
+      "Quente": 4,
+      "Iniciada": 19,
+      "Morna": 4,
+      "Fria": 3,
+      "Declinado pela SB Saúde": 4,
+      "Contrato Fechado": 2,
+      "Desistência da Empresa": 2
+    },
+    "topUfs": [
+      [
+        "BA",
+        21
+      ],
+      [
+        "PE",
+        5
+      ],
+      [
+        "SP",
+        5
+      ],
+      [
+        "RN",
+        3
+      ],
+      [
+        "AM",
+        2
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Unit",
+        4
+      ],
+      [
+        "DELFHI CORRETORA",
+        3
+      ],
+      [
+        "Aratu Seguros",
+        3
+      ],
+      [
+        "Natuseg",
+        3
+      ],
+      [
+        "Anubis Corretora De Seguros",
+        2
+      ],
+      [
+        "DRV8",
+        2
+      ],
+      [
+        "Assiste",
+        2
+      ],
+      [
+        "ZATTAR CORRETORA",
+        2
+      ],
+      [
+        "Hub Health",
+        2
+      ],
+      [
+        "MONTPELIER",
+        1
+      ]
+    ],
+    "empresas": [
+      "MAJORIE GONZAGA BITENCOURT",
+      "SINDICATO DAS EMPRESAS DE SEGURANÇA PRIVADA DO ESTADO DE PERNAMBUCO",
+      "CONSORCIO EXPRESSO MOBILIDADE SALVADOR",
+      "NEW CONCEPT LOG SERVICOS DE TRANSP LTDA",
+      "NC LOG SERV DE MAN E TRAN LTDA",
+      "COMPAHIA VALENCA INDUSTRIAL",
+      "VITORIA CAMINHOES LTDA",
+      "AMBIPAR ENVIRONMENTAL SOLUTIONS",
+      "ETEC INDUSTRIA, COMERCIO E SERVIÇÕES DE ESQUADRIAS E VIDROS LTDA",
+      "VR CONSTRUCOES E SERVICOS LTDA"
+    ]
+  },
+  "Ano Novo 2026": {
+    "total": 19,
+    "totalVidas": 3438,
+    "avgTkm": 241.42105263157896,
+    "totalFat": 2058984,
+    "statuses": {
+      "Campanha Encerrada": 19
+    },
+    "temperaturas": {
+      "Iniciada": 13,
+      "Declinado pela SB Saúde": 6
+    },
+    "topUfs": [
+      [
+        "BA",
+        17
+      ],
+      [
+        "SP",
+        1
+      ],
+      [
+        "PE",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Aratu Seguros",
+        7
+      ],
+      [
+        "Natuseg",
+        4
+      ],
+      [
+        "QUALICORP",
+        2
+      ],
+      [
+        "Auster",
+        2
+      ],
+      [
+        "Apolizza",
+        1
+      ],
+      [
+        "AON",
+        1
+      ],
+      [
+        "Freud Melo",
+        1
+      ],
+      [
+        "COLISEUM",
+        1
+      ]
+    ],
+    "empresas": [
+      "CONECTA EMPREENDIMENTOS LTDA",
+      "QUALY ENGENHARIA LTDA",
+      "PONTUAL TRANSPORTES",
+      "CONSORCIO ILUMINA",
+      "OSID-OBRAS SOCIAIS IRMA DULCE",
+      "SUPERMIX CONCRETO S/A",
+      "REISTAR INDUSTRIA E COMERCIO DE ELETRONICOS LTDA",
+      "MAXI SERVIÇOS E PRODUTOS LTDA",
+      "SUPERMERCADO ALPHA LTDA",
+      "ESFERA IGOR SERVIÇOS"
+    ]
+  },
+  "Julho 2025": {
+    "total": 67,
+    "totalVidas": 14391,
+    "avgTkm": 220.12686567164178,
+    "totalFat": 4110067.5,
+    "statuses": {
+      "Campanha Encerrada": 67
+    },
+    "temperaturas": {
+      "Declinado pela SB Saúde": 9,
+      "Iniciada": 38,
+      "Morna": 7,
+      "Fria": 4,
+      "Contrato Fechado": 5,
+      "Desistência da Empresa": 1,
+      "Quente": 3
+    },
+    "topUfs": [
+      [
+        "BA",
+        34
+      ],
+      [
+        "SP",
+        13
+      ],
+      [
+        "PE",
+        12
+      ],
+      [
+        "AM",
+        4
+      ],
+      [
+        "MA",
+        3
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Hub Health",
+        11
+      ],
+      [
+        "Aratu Seguros",
+        6
+      ],
+      [
+        "Galcorr Corretora",
+        5
+      ],
+      [
+        "Natuseg",
+        4
+      ],
+      [
+        "Apolizza",
+        3
+      ],
+      [
+        "Assure Corretora",
+        3
+      ],
+      [
+        "Anubis Corretora De Seguros",
+        2
+      ],
+      [
+        "MULTINEGOCIOS",
+        2
+      ],
+      [
+        "Edvan",
+        2
+      ],
+      [
+        "SOSEG CORRETORA DE SEGUROS LTDA",
+        2
+      ]
+    ],
+    "empresas": [
+      "BENIT EMPREENDIMENTOS DE TERCEIRIZAÇÃO E SERVIÇOS LTDA",
+      "INTERPLAST",
+      "MILHO DE OURO COMERCIO E INDUSTRIA ALIMENTICIA LTDA",
+      "CARVALHO COMERCIO E SERVICOS DE CONSERVAÇÃO LTDA",
+      "CONSORCIO CITELUM- 2MS",
+      "CLINICA DA OBESIDADE",
+      "FIXAR INDUSTRIAL",
+      "AMA FACILITES LTDA",
+      "BIG TRADING E EMPREENDIMENTOS LTDA",
+      "LAAGE"
+    ]
+  },
+  "Agosto 2025": {
+    "total": 60,
+    "totalVidas": 9189,
+    "avgTkm": 236.57083333333333,
+    "totalFat": 5968924.25,
+    "statuses": {
+      "Campanha Encerrada": 60
+    },
+    "temperaturas": {
+      "Declinado pela SB Saúde": 14,
+      "Morna": 3,
+      "Iniciada": 36,
+      "Contrato Fechado": 2,
+      "Quente": 3,
+      "Desistência da Empresa": 2
+    },
+    "topUfs": [
+      [
+        "BA",
+        35
+      ],
+      [
+        "MA",
+        7
+      ],
+      [
+        "SP",
+        6
+      ],
+      [
+        "PB",
+        5
+      ],
+      [
+        "PE",
+        3
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Natuseg",
+        7
+      ],
+      [
+        "Hub Health",
+        6
+      ],
+      [
+        "Aratu Seguros",
+        5
+      ],
+      [
+        "MUKLT NEGOCIO CORRETORA DE SEGUROS - JOÃO",
+        3
+      ],
+      [
+        "Edvan",
+        3
+      ],
+      [
+        "EXTRAMED",
+        3
+      ],
+      [
+        "Med Marques Corretora E Admnistradora De Seguros",
+        3
+      ],
+      [
+        "Apolizza",
+        2
+      ],
+      [
+        "Jocross",
+        2
+      ],
+      [
+        "Inovare",
+        2
+      ]
+    ],
+    "empresas": [
+      "MARCOS INACIO ADVOGADOS",
+      "DUBICO LOGISTICA BALSAS",
+      "WHKD INDUSTRIA, COMERCIO, IMPOTACAO E EXPORTACAO LTDA",
+      "FESTPAN ALIMENTOS IMPORTACAO E EXPORTACAO LTDA",
+      "EDITORA A TARDE AS",
+      "TRANSAGIL TRANSPORTES DE CARGA LTDA",
+      "GT PARTICIPAÇÃOES E SERVIÇOS LTDA",
+      "SIND INT DOS TRAB VIG EM EMP DE VIG E SEG",
+      "VERDE PLANEJAMENTOS E SERVIÇOS LTDA",
+      "ESTAF EQUIPAMENTOS SA"
+    ]
+  },
+  "Setembro Amarelo 2025": {
+    "total": 53,
+    "totalVidas": 8157,
+    "avgTkm": 252.20754716981133,
+    "totalFat": 6453409,
+    "statuses": {
+      "Campanha Encerrada": 53
+    },
+    "temperaturas": {
+      "Iniciada": 36,
+      "Declinado pela SB Saúde": 15,
+      "Contrato Fechado": 2
+    },
+    "topUfs": [
+      [
+        "BA",
+        35
+      ],
+      [
+        "SP",
+        10
+      ],
+      [
+        "PE",
+        3
+      ],
+      [
+        "MA",
+        2
+      ],
+      [
+        "SE",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Hub Health",
+        10
+      ],
+      [
+        "Natuseg",
+        7
+      ],
+      [
+        "Aratu Seguros",
+        6
+      ],
+      [
+        "Apolizza",
+        3
+      ],
+      [
+        "MDS",
+        3
+      ],
+      [
+        "Inovare",
+        2
+      ],
+      [
+        "Edvan",
+        2
+      ],
+      [
+        "RST CORRETORA",
+        1
+      ],
+      [
+        "Assiste",
+        1
+      ],
+      [
+        "Gbma",
+        1
+      ]
+    ],
+    "empresas": [
+      "C3 ENGENHARIA",
+      "TERMOPLAST EMBALAGENS LTDA",
+      "VAP BAHIA EMBIENTAL COLETA DE RESIDUOS LTDA",
+      "PARCEIRO SERVIÇOS ADMNISTRATIVOS LTDA",
+      "LITORAL DISTRIBUIDORA DE BEBIDAS LTDA",
+      "DROGAFORTE LTDA",
+      "COMERCIO DE FERRO AREVALO E JUNIOR LTDA",
+      "KERO- KERO PAES EMBALADOS LTDA",
+      "SINDPAN",
+      "ORV SERVICOS DE MANUTENÇÃO LTDA"
+    ]
+  },
+  "Novembro Azul 2025": {
+    "total": 24,
+    "totalVidas": 3883,
+    "avgTkm": 237.5,
+    "totalFat": 2058675,
+    "statuses": {
+      "Campanha Encerrada": 24
+    },
+    "temperaturas": {
+      "Iniciada": 20,
+      "Declinado pela SB Saúde": 3,
+      "Desistência da Empresa": 1
+    },
+    "topUfs": [
+      [
+        "BA",
+        16
+      ],
+      [
+        "PE",
+        4
+      ],
+      [
+        "SP",
+        3
+      ],
+      [
+        "MA",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Natuseg",
+        4
+      ],
+      [
+        "Aratu Seguros",
+        3
+      ],
+      [
+        "Hub Health",
+        3
+      ],
+      [
+        "Casagrande",
+        3
+      ],
+      [
+        "Ferraro",
+        2
+      ],
+      [
+        "PORTAL CORRETORA",
+        1
+      ],
+      [
+        "Mercer Marsh Beneficios",
+        1
+      ],
+      [
+        "Iva Lazaro",
+        1
+      ],
+      [
+        "Mais Negócios",
+        1
+      ],
+      [
+        "DRV8",
+        1
+      ]
+    ],
+    "empresas": [
+      "FORSEG SERVIÇOS DE APOIO",
+      "GRUPO AMAVIVA",
+      "TRANSPARANA",
+      "WEB ESTACIONAMENTO",
+      "NOGPACK",
+      "OASIS ALIMENTOS LTDA",
+      "CONTEC CONTABILIDADE",
+      "NSPORTS CONTEUDO ESPORTIVO SA",
+      "E.R SEGURANÇA E VIGILANCIA LTDA",
+      "ALEPH CONSERVADORA LTDA"
+    ]
+  },
+  "Encerramento 2025": {
+    "total": 9,
+    "totalVidas": 1537,
+    "avgTkm": 223.22222222222223,
+    "totalFat": 358829,
+    "statuses": {
+      "Campanha Encerrada": 9
+    },
+    "temperaturas": {
+      "Iniciada": 6,
+      "Declinado pela SB Saúde": 2,
+      "Contrato Fechado": 1
+    },
+    "topUfs": [
+      [
+        "BA",
+        9
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Natuseg",
+        3
+      ],
+      [
+        "Aratu Seguros",
+        2
+      ],
+      [
+        "Assiste",
+        1
+      ],
+      [
+        "GALLAGHER BRASIL CORRETORA DE SEGUROS LTDA",
+        1
+      ],
+      [
+        "Mercer Marsh Beneficios",
+        1
+      ],
+      [
+        "Auster",
+        1
+      ]
+    ],
+    "empresas": [
+      "DATEN TECNOLOGIA LTDA",
+      "PRESTMIX FABRICAÇÃO DE ARTEFATOS PLASTICOS LTDA",
+      "VOG AQUA E ATLANTICO EMPREENDIMENTOS IMOBILIARIOS SPE LTDA",
+      "FLEX MARK PRODUÇÃO",
+      "MULTICRED PROMOTORA DE VENDAS E SERVIÇOS LTDA",
+      "GRAN SERVICES S.A",
+      "DINAMO ENGENGARIA LTDA",
+      "UNITED CINEMAS INTERNATIONAL BRASIL LTDA",
+      "MEGA 3"
+    ]
+  },
+  "Março 2026": {
+    "total": 14,
+    "totalVidas": 1494,
+    "avgTkm": 238.21428571428572,
+    "totalFat": 350120,
+    "statuses": {
+      "Campanha Encerrada": 14
+    },
+    "temperaturas": {
+      "Iniciada": 7,
+      "Contrato Fechado": 1,
+      "Declinado pela SB Saúde": 6
+    },
+    "topUfs": [
+      [
+        "BA",
+        11
+      ],
+      [
+        "SE",
+        1
+      ],
+      [
+        "AL",
+        1
+      ],
+      [
+        "PE",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "Freud Melo",
+        2
+      ],
+      [
+        "Auster",
+        2
+      ],
+      [
+        "Anubis Corretora De Seguros",
+        2
+      ],
+      [
+        "COLISEUM",
+        1
+      ],
+      [
+        "Natuseg",
+        1
+      ],
+      [
+        "Edvan",
+        1
+      ],
+      [
+        "FRADES CORRETORA DE SEGUROS",
+        1
+      ],
+      [
+        "Aratu Seguros",
+        1
+      ],
+      [
+        "Specialist Adm E Corretora De Seguros Ltda",
+        1
+      ],
+      [
+        "Ferraro",
+        1
+      ]
+    ],
+    "empresas": [
+      "SARGENT SEGURANÇA E VIGILANCIA LTDA",
+      "LA VIE LEGACY LABS PRODUTOS MEDICOS E FARMACEUTICOS S.A",
+      "MAIS HOTEL LTDA",
+      "LIMPSERV CONSERVAÇÃO E LIMPEZA DE IMOVEIS EIRELI",
+      "DELMAR REFEIÇÕES LTDA",
+      "REVENDA REVALLE DO NORDESTE DA BAHIA LTDA",
+      "PATIOS NORDESTE SPE LTDA",
+      "CAMPO SANTO",
+      "CARATINHA EMPREENDIMENTO IMOBILIARIO SPE LTDA",
+      "PERPEC OILFIELD SUPPLY EXPORTAÇÃO E IMPORTAÇÃO DE MAQUINAS LTDA"
+    ]
+  },
+  "Carnaval 2026": {
+    "total": 8,
+    "totalVidas": 519,
+    "avgTkm": 248.75,
+    "totalFat": 125055,
+    "statuses": {
+      "Campanha Encerrada": 8
+    },
+    "temperaturas": {
+      "Declinado pela SB Saúde": 3,
+      "Iniciada": 5
+    },
+    "topUfs": [
+      [
+        "BA",
+        5
+      ],
+      [
+        "MA",
+        2
+      ],
+      [
+        "RN",
+        1
+      ]
+    ],
+    "topCorretores": [
+      [
+        "MULTINEGOCIOS",
+        2
+      ],
+      [
+        "Auster",
+        2
+      ],
+      [
+        "QUALICORP",
+        1
+      ],
+      [
+        "SOSEG CORRETORA DE SEGUROS LTDA",
+        1
+      ],
+      [
+        "GAMA NORDESTE",
+        1
+      ],
+      [
+        "ACRISURE",
+        1
+      ]
+    ],
+    "empresas": [
+      "SRL REFEICOES COLETIVAS LTDA",
+      "APLB SINDICATO- NUCLEO SINDICAL DE SANTA LUZ",
+      "NATIVAS GRILL",
+      "SAFIRA TRANSPORTES E TURISMO LTDA",
+      "BARRAPORTO CONDOMINIO CLUBE",
+      "ORDEM DOS ADVOGADOS DO BRASIL SECAO DO MARANHÃO",
+      "CONDOMINIO MANHATTAN SQUARE EDIFICIO TRIBECA",
+      "LEADEC SERVIÇOS INDUSTRIAIS DO PARANA LTDA"
+    ]
+  }
+}

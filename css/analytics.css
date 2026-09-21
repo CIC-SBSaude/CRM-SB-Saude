@@ -1,0 +1,41 @@
+.analytics-entry-btn { margin-top: 1rem; border: 0; border-radius: 10px; background: #be123c; color: white; padding: .72rem 1rem; font: inherit; font-weight: 700; cursor: pointer; }
+.analytics-page { max-width: 1500px; margin: 0 auto; padding: 1.5rem 1.75rem 3rem; color: #0b1c30; }
+.analytics-heading { display: flex; align-items: end; justify-content: space-between; margin-bottom: 1.5rem; }
+.analytics-eyebrow { margin: 0 0 .4rem; color: #be123c; font-size: .7rem; font-weight: 800; letter-spacing: .12em; }
+.analytics-heading h2 { margin: 0; font-size: clamp(1.5rem, 3vw, 2rem); }
+.analytics-heading p:last-child { margin: .4rem 0 0; color: #64748b; }
+.analytics-toolbar, .analytics-builder, .analytics-filter-bar, .analytics-card { border: 1px solid #e2e8f0; background: #fff; border-radius: 14px; box-shadow: 0 4px 20px #0b1c3008; }
+.analytics-toolbar { display: flex; flex-wrap: wrap; gap: .7rem; align-items: end; padding: 1rem; margin-bottom: .85rem; }
+.analytics-builder { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: .8rem; padding: 1rem; margin-bottom: .85rem; }
+.analytics-page label { display: flex; flex-direction: column; gap: .35rem; font-size: .76rem; font-weight: 700; color: #475569; }
+.analytics-page select, .analytics-page input { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 8px; padding: .45rem .65rem; background: #fff; color: #0b1c30; font: inherit; font-size: .82rem; min-width: 0; }
+.analytics-toolbar label:first-child { min-width: 185px; }
+.analytics-toolbar label:nth-child(2) { min-width: 230px; flex: 1; }
+.analytics-page button { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; padding: .45rem .8rem; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.analytics-page button:hover:not(:disabled) { border-color: #be123c; color: #be123c; }
+.analytics-page button:disabled { opacity: .45; cursor: default; }
+.analytics-page button.an-primary { background: #be123c; color: #fff; border-color: #be123c; }
+.analytics-page button.an-primary:hover { background: #95002a; color: white; }
+.analytics-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .8rem 1rem; margin-bottom: 1rem; }
+.analytics-filter-bar > strong { margin-right: .3rem; font-size: .82rem; }
+.analytics-filter-bar select:first-of-type { min-width: 160px; }
+.analytics-filter-bar select:nth-of-type(2) { min-width: 180px; max-width: 310px; }
+.analytics-chips { width: 100%; display: flex; flex-wrap: wrap; gap: .4rem; }
+.analytics-page button.an-chip { min-height: 29px; padding: .25rem .55rem; border-color: #fecdd3; background: #fff1f2; color: #9f1239; font-size: .73rem; }
+.analytics-summary { margin: .8rem 0; color: #475569; font-size: .88rem; }
+.analytics-summary strong { color: #0b1c30; }
+.analytics-card { margin-top: 1rem; overflow: hidden; }
+.analytics-card-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.2rem; border-bottom: 1px solid #e2e8f0; }
+.analytics-card-head h3 { margin: 0; font-size: 1rem; }
+.analytics-card-head p { margin: .25rem 0 0; color: #64748b; font-size: .77rem; }
+.analytics-canvas { height: 370px; padding: 1rem 1.2rem 1.4rem; }
+.analytics-empty { padding: 2rem; text-align: center; color: #64748b; }
+.analytics-table-wrap { width: 100%; overflow: auto; max-height: 520px; }
+.analytics-table { width: 100%; border-collapse: collapse; font-size: .8rem; white-space: nowrap; }
+.analytics-table th, .analytics-table td { padding: .65rem .8rem; border-bottom: 1px solid #edf2f7; text-align: right; }
+.analytics-table th:first-child, .analytics-table td:first-child { text-align: left; position: sticky; left: 0; background: inherit; max-width: 330px; overflow: hidden; text-overflow: ellipsis; }
+.analytics-table thead, .analytics-table tfoot { background: #f1f5f9; font-weight: 800; }
+.analytics-table tbody tr:nth-child(even) { background: #f8fafc; }
+.analytics-table tbody tr:hover { background: #fff1f2; }
+@media (max-width: 1000px) { .analytics-builder { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .analytics-page { padding: 1rem .7rem 2rem; } .analytics-builder { grid-template-columns: 1fr; } .analytics-toolbar label { width: 100%; } .analytics-filter-bar select { width: 100%; max-width: none !important; } .analytics-canvas { height: 300px; } }

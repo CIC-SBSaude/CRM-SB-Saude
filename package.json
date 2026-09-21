@@ -1,0 +1,14 @@
+{
+  "name": "crm-sb-saude",
+  "version": "1.0.0",
+  "description": "CRM SB Saúde — análises dinâmicas",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test/analytics.test.js && node test/reports.test.js && node test/theme.test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
