@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test/analytics.test.js && node test/reports.test.js && node test/theme.test.js && node test/quote_modal.test.js && node test/supabase_integration.test.js && node test/user_sync_verification.test.js",
+    "test": "node test/analytics.test.js && node test/reports.test.js && node test/theme.test.js && node test/quote_modal.test.js && node test/supabase_integration.test.js && node test/user_sync_verification.test.js && node test/reconciliation_parity.test.js && node test/brokers_tab.test.js",
     "migrate": "node scripts/migrate.js"
   },
   "keywords": [],

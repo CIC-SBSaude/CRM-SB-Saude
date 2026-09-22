@@ -455,7 +455,7 @@
         }
 
         return raw.map(b => {
-          const name = b.CORRETOR_1 || '';
+          const name = (b.CORRETOR_1 || b['Corretor 1'] || b.corretor_1 || '').trim();
           const stats = brokerMap[name] || { count: 0, closed: 0, vidas: 0, faturamento: 0 };
           const convRate = stats.count > 0 ? ((stats.closed / stats.count) * 100).toFixed(1) : '0.0';
           const tkmMedio = stats.vidas > 0 ? stats.faturamento / stats.vidas : 0;

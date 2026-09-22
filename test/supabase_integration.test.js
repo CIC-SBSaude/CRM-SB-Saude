@@ -38,7 +38,7 @@ async function runTests() {
   assert.ok(parseInt(counts.campaigns_count, 10) >= 20, 'Campanhas devem existir');
   console.log('✓ Teste 2: Integridade de contagens validada (1072 propostas, 535 empresas, 161 corretores, 27 UFs).');
 
-  // Teste 3: Trigger sync_proposal_financials (faturamento e aptidão)
+  // Teste 3: Trigger sync_proposal_financials (faturamento e aptidão conforme RN-05)
   const testId = 'TEST-INTEGRATION-' + Date.now();
   await pgClient.query(`
     INSERT INTO public.proposals (
@@ -50,20 +50,19 @@ async function runTests() {
 
   const inserted = await pgClient.query(`SELECT faturamento_num, aptidao FROM public.proposals WHERE id = $1`, [testId]);
   assert.strictEqual(parseFloat(inserted.rows[0].faturamento_num), 10000.00, 'Trigger deve calcular faturamento_num = vidas * tkm');
-  assert.strictEqual(inserted.rows[0].aptidao, 'Inapto', 'Trigger deve definir Inapto para Desistência da Empresa');
-  console.log('✓ Teste 3.1: Trigger calculou faturamento_num (10.000,00) e aptidao (Inapto) no INSERT.');
+  assert.strictEqual(inserted.rows[0].aptidao, 'Apto', 'Trigger deve definir Apto para Desistência da Empresa conforme RN-05');
+  console.log('✓ Teste 3.1: Trigger calculou faturamento_num (10.000,00) e aptidao (Apto para Desistência) no INSERT.');
 
-  // Atualizar para Em Negociação
+  // Atualizar para Declinado pela SB Saúde -> deve virar Inapto (RN-05)
   await pgClient.query(`
     UPDATE public.proposals
-    SET temperatura_contrato = 'Em Negociação', vidas_num = 100
+    SET temperatura_contrato = 'Declinado pela SB Saúde', vidas_num = 100
     WHERE id = $1
   `, [testId]);
 
-  const updated = await pgClient.query(`SELECT faturamento_num, aptidao FROM public.proposals WHERE id = $1`, [testId]);
-  assert.strictEqual(parseFloat(updated.rows[0].faturamento_num), 20000.00, 'Trigger deve recalcular faturamento_num = 20000.00');
-  assert.strictEqual(updated.rows[0].aptidao, 'Apto', 'Trigger deve atualizar aptidao para Apto');
-  console.log('✓ Teste 3.2: Trigger recalculou faturamento_num (20.000,00) e aptidao (Apto) no UPDATE.');
+  const updatedDeclinado = await pgClient.query(`SELECT faturamento_num, aptidao FROM public.proposals WHERE id = $1`, [testId]);
+  assert.strictEqual(updatedDeclinado.rows[0].aptidao, 'Inapto', 'Trigger deve atualizar aptidao para Inapto somente em Declinado pela SB Saúde');
+  console.log('✓ Teste 3.2: Trigger atualizou aptidao para Inapto para Declinado pela SB Saúde.');
 
   // Limpar registro de teste
   await pgClient.query(`DELETE FROM public.proposals WHERE id = $1`, [testId]);

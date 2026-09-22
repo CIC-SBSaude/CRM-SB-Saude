@@ -28,9 +28,9 @@ vm.runInContext(dbCode, sandbox);
 
 const realAppData = sandbox.window.CRM_INITIAL_DATA;
 assert(realAppData, 'Base CRM_INITIAL_DATA deve estar carregada');
-assert(realAppData.proposals.length >= 1000, 'Base de propostas deve conter ao menos 1000 registros');
+assert.strictEqual(realAppData.proposals.length, 1072, 'Base de propostas deve conter exatamente 1072 registros no lote de referência');
 
-console.log('✓ Base de dados real carregada com', realAppData.proposals.length, 'propostas.');
+console.log('✓ Base de dados real carregada com', realAppData.proposals.length, 'propostas (paridade exata 1.072).');
 
 // Mock de Usuários
 const masterUser = {

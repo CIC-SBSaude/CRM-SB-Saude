@@ -171,17 +171,20 @@ CREATE TABLE IF NOT EXISTS public.proposals (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Trigger de cálculo financeiro e aptidão na proposta
+-- Trigger de cálculo financeiro e aptidão na proposta (RN-03 e RN-05)
 CREATE OR REPLACE FUNCTION public.sync_proposal_financials()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Se vidas ou tkm numéricos forem informados
-  IF NEW.vidas_num IS NOT NULL AND NEW.tkm_num IS NOT NULL THEN
+  -- Se faturamento_num não foi explicitamente fornecido, calcula a partir de vidas_num e tkm_num
+  IF NEW.faturamento_num IS NULL AND NEW.vidas_num IS NOT NULL AND NEW.tkm_num IS NOT NULL THEN
     NEW.faturamento_num = ROUND((NEW.vidas_num * NEW.tkm_num)::numeric, 2);
   END IF;
 
-  -- Sincronizar aptidão comercial conforme regra RN-05
-  IF NEW.temperatura_contrato = 'Desistência da Empresa' OR NEW.temperatura_contrato = 'Declinado pela SB Saúde' THEN
+  -- Sincronizar aptidão comercial conforme regra RN-05:
+  -- Status vazio -> aptidão vazia; 'Declinado pela SB Saúde' -> 'Inapto'; demais status preenchidos (inclusive desistências) -> 'Apto'
+  IF NEW.temperatura_contrato IS NULL OR TRIM(NEW.temperatura_contrato) = '' THEN
+    NEW.aptidao = '';
+  ELSIF TRIM(NEW.temperatura_contrato) = 'Declinado pela SB Saúde' THEN
     NEW.aptidao = 'Inapto';
   ELSE
     NEW.aptidao = 'Apto';

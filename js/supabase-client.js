@@ -35,6 +35,9 @@
       this.client = null;
       this.isConnected = false;
       this.realtimeChannel = null;
+      this.syncState = 'idle'; // 'idle' | 'loading' | 'complete' | 'error' | 'offline'
+      this.lastSyncError = null;
+      this.lastSyncTime = null;
       this.init();
       // Auto-reconexão periódica se estiver offline
       this.reconnectTimer = setInterval(() => {
@@ -42,6 +45,18 @@
           this.checkConnection();
         }
       }, 12000);
+      if (this.reconnectTimer && typeof this.reconnectTimer.unref === 'function') {
+        this.reconnectTimer.unref();
+      }
+    }
+
+    getSyncStatus() {
+      return {
+        isConnected: this.isConnected,
+        state: this.syncState,
+        error: this.lastSyncError,
+        lastSyncTime: this.lastSyncTime
+      };
     }
 
     init() {
@@ -94,6 +109,7 @@
     }
 
     updateConnectionIndicator(connected) {
+      if (typeof document === 'undefined') return;
       const badge = document.getElementById('supabase-status-badge');
       if (badge) {
         badge.remove();
@@ -122,19 +138,97 @@
     // ==========================================
     // MÉTODOS DE LEITURA (SELECT)
     // ==========================================
-    async fetchProposals() {
-      if (!this.client) return null;
-      try {
-        const { data, error } = await this.client
-          .from('proposals')
-          .select('*')
-          .order('id', { ascending: true });
+    async fetchProposals(options = {}) {
+      if (!this.client) {
+        this.syncState = 'offline';
+        return null;
+      }
+      this.syncState = 'loading';
+      this.lastSyncError = null;
 
-        if (error) throw error;
-        // Normalizar colunas do PostgreSQL para o formato esperado pelo CRM
-        return data.map(p => ({
+      const pageSize = options.pageSize || 500;
+      const maxRetries = options.maxRetries || 3;
+
+      try {
+        // 1. Obter a primeira página com contagem exata
+        let firstResult = null;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          const res = await this.client
+            .from('proposals')
+            .select('*', { count: 'exact' })
+            .order('id', { ascending: true })
+            .range(0, pageSize - 1);
+          if (!res.error) {
+            firstResult = res;
+            break;
+          }
+          console.warn(`[Supabase] Tentativa ${attempt} falhou ao consultar página 1:`, res.error.message);
+          if (attempt === maxRetries) throw res.error;
+          await new Promise(r => setTimeout(r, 300 * attempt));
+        }
+
+        const { data: firstPage, count: totalCount } = firstResult;
+        if (typeof totalCount !== 'number') {
+          throw new Error('Supabase Data API não retornou a contagem total exata (count)');
+        }
+
+        if (totalCount === 0) {
+          this.syncState = 'complete';
+          this.lastSyncTime = new Date().toISOString();
+          return [];
+        }
+
+        const allRows = [...(firstPage || [])];
+
+        // 2. Paginação estável e determinística para as páginas subsequentes
+        for (let offset = pageSize; offset < totalCount; offset += pageSize) {
+          const to = Math.min(offset + pageSize - 1, totalCount - 1);
+          let pageSuccess = false;
+          let lastPageError = null;
+
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            const { data: pageData, error: pageError } = await this.client
+              .from('proposals')
+              .select('*')
+              .order('id', { ascending: true })
+              .range(offset, to);
+
+            if (!pageError && Array.isArray(pageData)) {
+              allRows.push(...pageData);
+              pageSuccess = true;
+              break;
+            }
+            lastPageError = pageError;
+            console.warn(`[Supabase] Tentativa ${attempt} falhou ao buscar página offset ${offset}:`, pageError?.message);
+            await new Promise(r => setTimeout(r, 300 * attempt));
+          }
+
+          if (!pageSuccess) {
+            throw new Error(`Falha irrecuperável na página de propostas (offset ${offset} a ${to}): ${lastPageError?.message || 'timeout'}`);
+          }
+        }
+
+        // 3. Verificação estrita de completude e unicidade de ID
+        if (allRows.length !== totalCount) {
+          throw new Error(`Inconsistência de completude na sincronização: esperado ${totalCount} registros, mas recebidos ${allRows.length}. A sincronização foi abortada para evitar truncamento.`);
+        }
+
+        const seenIds = new Set();
+        for (const r of allRows) {
+          const idStr = String(r.id);
+          if (seenIds.has(idStr)) {
+            throw new Error(`ID duplicado retornado pela API na paginação: ${idStr}`);
+          }
+          seenIds.add(idStr);
+        }
+
+        this.syncState = 'complete';
+        this.lastSyncTime = new Date().toISOString();
+
+        // 4. Normalizar colunas do PostgreSQL para o formato esperado pelo CRM
+        return allRows.map(p => ({
           _RowNumber: p.row_number,
-          ID: p.id,
+          ID: String(p.id),
           DATA_DA_PROSPECCAO: p.data_da_prospeccao,
           EMPRESA: p.empresa,
           CNPJ: p.cnpj,
@@ -176,7 +270,9 @@
           Plataforma: p.plataforma
         }));
       } catch (err) {
-        console.warn('[Supabase] Erro ao carregar proposals:', err);
+        this.syncState = 'error';
+        this.lastSyncError = err.message;
+        console.warn('[Supabase] Erro ao carregar proposals paginadas:', err.message);
         return null;
       }
     }
@@ -218,10 +314,16 @@
         if (error) throw error;
         return data.map(b => ({
           _RowNumber: b.row_number || b.id,
-          'Corretor 1': b.corretor_1,
-          'Imagem': b.imagem,
-          'Email': b.email,
-          'Telefone': b.telefone
+          CORRETOR_1: b.corretor_1 || '',
+          'Corretor 1': b.corretor_1 || '',
+          corretor_1: b.corretor_1 || '',
+          'Imagem': b.imagem || '',
+          Imagem: b.imagem || '',
+          imagem: b.imagem || '',
+          'Email': b.email || '',
+          Email: b.email || '',
+          'Telefone': b.telefone || '',
+          Telefone: b.telefone || ''
         }));
       } catch (err) {
         console.warn('[Supabase] Erro ao carregar brokers:', err);
@@ -294,16 +396,16 @@
     async saveProposal(p) {
       if (!this.client) return false;
       try {
-        // Parse numéricos
-        const vidasNum = parseInt(String(p.VIDAS || '0').replace(/\D/g, ''), 10) || 0;
+        // Parse numéricos utilizando BusinessRules padronizado
+        const vidasNum = typeof BusinessRules !== 'undefined' ? BusinessRules.parseLives(p.VIDAS) : (parseInt(String(p.VIDAS || '0').replace(/\D/g, ''), 10) || 0);
         const parseNum = v => {
           if (!v) return 0;
           let s = String(v).replace('R$', '').trim();
           s = s.replace(/\./g, '').replace(',', '.');
           return parseFloat(s) || 0;
         };
-        const tkmNum = parseNum(p.TKM);
-        const fatNum = parseNum(p.FATURAMENTO) || (vidasNum * tkmNum);
+        const tkmNum = typeof BusinessRules !== 'undefined' ? BusinessRules.parseCurrency(p.TKM) : parseNum(p.TKM);
+        const fatNum = (typeof BusinessRules !== 'undefined' ? BusinessRules.parseCurrency(p.FATURAMENTO) : parseNum(p.FATURAMENTO)) || (vidasNum * tkmNum);
 
         const record = {
           id: String(p.ID),
@@ -408,6 +510,31 @@
         return true;
       } catch (err) {
         console.error('[Supabase] Erro ao salvar empresa:', err);
+        return false;
+      }
+    }
+
+    async saveBroker(b) {
+      if (!this.client) return false;
+      try {
+        const name = (b.CORRETOR_1 || b['Corretor 1'] || b.corretor_1 || '').trim();
+        if (!name) return false;
+        const record = {
+          corretor_1: name,
+          imagem: b.Imagem || b.imagem || null,
+          email: b.Email || b.email || null,
+          telefone: b.Telefone || b.telefone || null,
+          updated_at: new Date().toISOString()
+        };
+        const { error } = await this.client
+          .from('brokers')
+          .upsert(record, { onConflict: 'corretor_1' });
+
+        if (error) throw error;
+        console.log(`[Supabase] Corretor ${name} persistido com sucesso.`);
+        return true;
+      } catch (err) {
+        console.error('[Supabase] Erro ao salvar corretor:', err);
         return false;
       }
     }
@@ -599,6 +726,12 @@
     }
   }
 
-  // Exportar instância global
-  window.crmSupabase = new SBClient();
+  // Exportar instância global e classe para browser e Node.js
+  if (typeof window !== 'undefined') {
+    window.crmSupabase = new SBClient();
+    window.CRMSupabaseClient = SBClient;
+  }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { SBClient };
+  }
 })();

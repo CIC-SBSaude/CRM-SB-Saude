@@ -24,6 +24,43 @@
       saveDataStore();
     }
 
+    // Reconciliação do cache legado: se o cache continha apenas um subconjunto truncado (ex: 1.000 ou menos propostas),
+    // converge para a base íntegra completa de 1.072 registros, preservando quaisquer edições locais por ID.
+    if (window.CRM_INITIAL_DATA && Array.isArray(window.CRM_INITIAL_DATA.proposals)) {
+      const refCount = window.CRM_INITIAL_DATA.proposals.length;
+      if (!appData || !Array.isArray(appData.proposals) || appData.proposals.length < refCount) {
+        console.warn(`[DataStore] Cache legado de propostas detectado (${appData?.proposals?.length || 0} registros). Convergindo para a coleção de referência (${refCount} registros).`);
+        const localEditedMap = new Map();
+        if (appData && Array.isArray(appData.proposals)) {
+          appData.proposals.forEach(p => localEditedMap.set(String(p.ID), p));
+        }
+        appData = appData || {};
+        appData.proposals = window.CRM_INITIAL_DATA.proposals.map(refP => {
+          const localP = localEditedMap.get(String(refP.ID));
+          return localP ? Object.assign({}, refP, localP) : refP;
+        });
+        saveDataStore();
+      }
+    }
+
+    // Sanitização e normalização da carteira de corretores (garante campo CORRETOR_1 e fallback íntegro)
+    if (appData && Array.isArray(appData.brokers)) {
+      appData.brokers.forEach(b => {
+        if (!b.CORRETOR_1) {
+          b.CORRETOR_1 = b['Corretor 1'] || b.corretor_1 || '';
+        }
+        if (!b.Imagem && b.imagem) {
+          b.Imagem = b.imagem;
+        }
+      });
+      if (appData.brokers.length === 0 && window.CRM_INITIAL_DATA && Array.isArray(window.CRM_INITIAL_DATA.brokers)) {
+        appData.brokers = window.CRM_INITIAL_DATA.brokers.slice();
+      }
+    } else if (window.CRM_INITIAL_DATA && Array.isArray(window.CRM_INITIAL_DATA.brokers)) {
+      appData = appData || {};
+      appData.brokers = window.CRM_INITIAL_DATA.brokers.slice();
+    }
+
     // Garante que campanhas vazias ou 'Planejamento 2026' sejam expurgadas do cache
     if (appData && appData.campaignsList) {
       appData.campaignsList = appData.campaignsList.filter(c => c && c.name && c.name.trim() !== '' && c.name !== 'Planejamento 2026');
@@ -64,8 +101,13 @@
 
       let updated = false;
       if (Array.isArray(proposals) && proposals.length > 0) {
-        appData.proposals = proposals;
-        updated = true;
+        // Proteção contra truncamento acidental: não substituir coleção íntegra (>1000) por retorno incompleto
+        if (appData.proposals && appData.proposals.length > proposals.length && proposals.length <= 1000) {
+          console.warn(`[Supabase Sync] Rejeitada substituição: coleção remota recebida (${proposals.length}) é menor que a base local íntegra (${appData.proposals.length}).`);
+        } else {
+          appData.proposals = proposals;
+          updated = true;
+        }
       }
       if (Array.isArray(companies) && companies.length > 0) {
         appData.companies = companies;
@@ -76,7 +118,10 @@
         updated = true;
       }
       if (Array.isArray(brokers) && brokers.length > 0) {
-        appData.brokers = brokers;
+        appData.brokers = brokers.map(b => ({
+          ...b,
+          CORRETOR_1: b.CORRETOR_1 || b['Corretor 1'] || b.corretor_1 || ''
+        }));
         updated = true;
       }
 
@@ -586,7 +631,7 @@
     };
 
     proposals.forEach(p => {
-      const lives = parseInt(p.VIDAS, 10) || 0;
+      const lives = BusinessRules.parseLives(p.VIDAS);
       const rev = BusinessRules.parseCurrency(p.FATURAMENTO);
       totalLives += lives;
       totalRevenue += rev;
@@ -610,7 +655,7 @@
     });
 
     const conversionRate = totalCount > 0 ? ((closedCount / totalCount) * 100).toFixed(1) : '18.1';
-    const avgTkm = totalLives > 0 ? (totalRevenue / totalLives) : 594.25;
+    const avgTkm = totalLives > 0 ? (totalRevenue / totalLives) : 209.76;
     const insights = calculateStrategicInsights(proposals);
 
     container.innerHTML = `
@@ -679,7 +724,7 @@
             </div>
             <div class="exec-kpi-val tnum">R$ ${(totalRevenue / 1000000).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}M</div>
             <div class="exec-kpi-sub">
-              <span>R$ ${(closedRevenue / 1000000).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}M realizado</span>
+              <span>R$ ${(closedRevenue / 1000000).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}M contratos fechados (status comercial)</span>
             </div>
             <div class="exec-kpi-action">Explorar análise →</div>
           </div>
@@ -746,7 +791,7 @@
               <span class="exec-insights-dot"></span>
               <span class="exec-insights-title">INSIGHTS ESTRATÉGICOS EM TEMPO REAL</span>
             </div>
-            <span class="exec-insights-sub">Calculados sobre a carteira ativa</span>
+            <span class="exec-insights-sub">Calculados sobre as propostas no pipeline comercial</span>
           </div>
 
           <div class="exec-insights-grid">
@@ -804,7 +849,7 @@
               </div>
             </div>
 
-            <!-- 4: Receita Ponderada -->
+            <!-- 4: Receita Ponderada (Simulação) -->
             <div class="exec-insight-card">
               <div class="exec-insight-icon-box">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -814,10 +859,10 @@
                 </svg>
               </div>
               <div class="exec-insight-content">
-                <span class="exec-insight-category">RECEITA PONDERADA</span>
+                <span class="exec-insight-category">RECEITA PONDERADA (SIMULAÇÃO)</span>
                 <div class="exec-insight-title">${BusinessRules.formatCurrency(insights.projectedRevenue)}</div>
-                <div class="exec-insight-stat">Probabilidade por estágio comercial</div>
-                <div class="exec-insight-desc">Projeção estatística ajustada pela probabilidade do funil de vendas.</div>
+                <div class="exec-insight-stat">Probabilidade estimada por estágio comercial</div>
+                <div class="exec-insight-desc">Simulação estimada baseada em pesos hipotéticos de conversão por etapa do funil.</div>
               </div>
             </div>
           </div>
@@ -1312,7 +1357,7 @@
     let biggest = { company: 'Nenhuma', lives: 0, revenue: 0 };
     proposals.forEach(p => {
       const rev = BusinessRules.parseCurrency(p.FATURAMENTO);
-      const lives = parseInt(p.VIDAS, 10) || 0;
+      const lives = BusinessRules.parseLives(p.VIDAS);
       if (rev > biggest.revenue) {
         biggest = { company: p.EMPRESA || 'Sem Nome', lives, revenue: rev };
       }
@@ -1324,7 +1369,7 @@
     proposals.forEach(p => {
       const uf = p.UF || 'SP';
       ufCounts[uf] = (ufCounts[uf] || 0) + 1;
-      ufLives[uf] = (ufLives[uf] || 0) + (parseInt(p.VIDAS, 10) || 0);
+      ufLives[uf] = (ufLives[uf] || 0) + BusinessRules.parseLives(p.VIDAS);
     });
     const sortedUfs = Object.entries(ufCounts).sort((a,b) => b[1] - a[1]);
     const topUfName = sortedUfs.length > 0 ? sortedUfs[0][0] : 'SP';
@@ -1586,7 +1631,7 @@
     } else if (kpiKey === 'lives') {
       title = 'Detalhamento de Vidas em Cotação';
       desc = 'Propostas ordenadas por número de vidas seguradas';
-      filteredList = [...proposals].sort((a,b) => (parseInt(b.VIDAS,10)||0) - (parseInt(a.VIDAS,10)||0));
+      filteredList = [...proposals].sort((a,b) => BusinessRules.parseLives(b.VIDAS) - BusinessRules.parseLives(a.VIDAS));
     } else if (kpiKey === 'revenue') {
       title = 'Ranking de Faturamento em Negociação';
       desc = 'Maiores valores monetários cotados em carteira';
@@ -1616,7 +1661,7 @@
     let sumLives = 0;
     let sumRev = 0;
     filteredList.forEach(p => {
-      sumLives += parseInt(p.VIDAS,10) || 0;
+      sumLives += BusinessRules.parseLives(p.VIDAS);
       sumRev += BusinessRules.parseCurrency(p.FATURAMENTO);
     });
 
@@ -1695,7 +1740,7 @@
     let sumLives = 0;
     let sumRev = 0;
     filtered.forEach(p => {
-      sumLives += parseInt(p.VIDAS,10) || 0;
+      sumLives += BusinessRules.parseLives(p.VIDAS);
       sumRev += BusinessRules.parseCurrency(p.FATURAMENTO);
     });
 
@@ -2145,16 +2190,18 @@
 
   // 3. CARTEIRA DE CORRETORES
   function renderBrokers(container) {
-    const brokers = appData.brokers;
-    const proposals = appData.proposals;
+    const brokers = (appData && Array.isArray(appData.brokers) && appData.brokers.length > 0)
+      ? appData.brokers
+      : ((window.CRM_INITIAL_DATA && Array.isArray(window.CRM_INITIAL_DATA.brokers)) ? window.CRM_INITIAL_DATA.brokers : []);
+    const proposals = (appData && Array.isArray(appData.proposals)) ? appData.proposals : [];
 
     // Calcula vínculos para cada corretor nas 3 posições
     const brokerStats = brokers.map(b => {
-      const name = b.CORRETOR_1;
+      const name = (b.CORRETOR_1 || b['Corretor 1'] || b.corretor_1 || 'Sem Identificação').trim();
       let p1 = 0, p2 = 0, p3 = 0, lives = 0, revenue = 0;
 
       proposals.forEach(p => {
-        const v = parseInt(p.VIDAS, 10) || 0;
+        const v = BusinessRules.parseLives(p.VIDAS);
         const r = BusinessRules.parseCurrency(p.FATURAMENTO);
         if (p.CORRETORES_1 === name) {
           p1++;
@@ -2167,7 +2214,7 @@
 
       return {
         name,
-        image: b.Imagem,
+        image: b.Imagem || b.imagem || '',
         totalProps: p1 + p2 + p3,
         pos1: p1,
         pos2: p2,
@@ -2244,12 +2291,15 @@
             </tr>
           </thead>
           <tbody>
-            ${brokerStats.map(b => `
-              <tr class="broker-data-row" data-broker-name="${b.name.toLowerCase()}">
+            ${brokerStats.map(b => {
+              const safeName = b.name || 'Sem Identificação';
+              const initials = (safeName.length >= 2 ? safeName.slice(0, 2) : (safeName || 'CO')).toUpperCase();
+              return `
+              <tr class="broker-data-row" data-broker-name="${safeName.toLowerCase()}">
                 <td>
                   <div style="display:flex; align-items:center; gap:0.65rem;">
-                    <div class="user-avatar" style="width:30px; height:30px; font-size:0.75rem;">${b.name.slice(0, 2).toUpperCase()}</div>
-                    <strong>${b.name}</strong>
+                    <div class="user-avatar" style="width:30px; height:30px; font-size:0.75rem;">${initials}</div>
+                    <strong>${safeName}</strong>
                   </div>
                 </td>
                 <td class="tnum">${b.pos1}</td>
@@ -2259,10 +2309,11 @@
                 <td class="tnum">${b.lives.toLocaleString('pt-BR')} vidas</td>
                 <td class="tnum" style="color:var(--secondary); font-weight:600;">${BusinessRules.formatCurrency(b.revenue)}</td>
                 <td>
-                  <button class="btn btn-ghost btn-sm btn-filter-by-broker" data-broker="${b.name}">Ver Propostas</button>
+                  <button class="btn btn-ghost btn-sm btn-filter-by-broker" data-broker="${safeName}">Ver Propostas</button>
                 </td>
               </tr>
-            `).join('')}
+            `;
+            }).join('')}
           </tbody>
         </table>
       </div>
@@ -2302,15 +2353,21 @@
 
     const btnNewBroker = container.querySelector('#btn-new-broker');
     if (btnNewBroker) {
-      btnNewBroker.addEventListener('click', () => {
+      btnNewBroker.addEventListener('click', async () => {
         const name = prompt('Nome do novo corretor:');
         if (name && name.trim()) {
-          appData.brokers.push({
-            CORRETOR_1: name.trim(),
+          const trimmed = name.trim();
+          const newBroker = {
+            CORRETOR_1: trimmed,
+            'Corretor 1': trimmed,
             Imagem: ''
-          });
+          };
+          appData.brokers.push(newBroker);
           saveDataStore();
-          showToast(`Corretor ${name} cadastrado com sucesso!`);
+          if (window.crmSupabase && typeof window.crmSupabase.saveBroker === 'function') {
+            await window.crmSupabase.saveBroker(newBroker);
+          }
+          showToast(`Corretor ${trimmed} cadastrado com sucesso!`);
           renderView();
         }
       });
@@ -2348,7 +2405,7 @@
     let totalFat = 0;
     let lastDate = '';
     proposals.forEach(p => {
-      totalVidas += parseInt(p.VIDAS, 10) || 0;
+      totalVidas += BusinessRules.parseLives(p.VIDAS);
       totalFat += BusinessRules.parseCurrency(p.FATURAMENTO);
       if (p.DATA_DA_PROSPECCAO) lastDate = p.DATA_DA_PROSPECCAO;
     });
@@ -4019,7 +4076,7 @@
     const inpFat = modal.querySelector('#camp-meta-fat');
 
     function calcMetaFat() {
-      const v = parseInt(inpVidas.value, 10) || 0;
+      const v = BusinessRules.parseLives(inpVidas.value);
       const t = parseFloat(inpTkm.value) || 0;
       const total = v * t;
       inpFat.value = BusinessRules.formatCurrency(total);
@@ -4061,7 +4118,7 @@
       const icon = modal.querySelector('#camp-icon').value;
       const status = modal.querySelector('#camp-status').value;
       const segmento = modal.querySelector('#camp-segmento').value;
-      const metaVidas = parseInt(inpVidas.value, 10) || 0;
+      const metaVidas = BusinessRules.parseLives(inpVidas.value);
       const tkmEsperado = parseFloat(inpTkm.value) || 0;
       const metaFat = metaVidas * tkmEsperado;
       const acomodacao = modal.querySelector('#camp-acomodacao').value;

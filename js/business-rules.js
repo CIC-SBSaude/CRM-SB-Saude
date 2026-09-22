@@ -54,17 +54,39 @@ const BusinessRules = {
     return '';
   },
 
-  // RN-03: Faturamento = Vidas × TKM com arredondamento monetário
-  parseCurrency(valStr) {
-    if (typeof valStr === 'number') return valStr;
-    if (!valStr) return 0;
-    // Remove "R$", espaços, e trata ponto/vírgula pt-BR
-    const cleaned = String(valStr)
-      .replace(/[R$\s]/g, '')
-      .replace(/\./g, '')
-      .replace(',', '.');
-    const num = parseFloat(cleaned);
+  // RN-03: Faturamento = Vidas × TKM com arredondamento monetário e conversão pt-BR
+  parseLives(val) {
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'number') return Number.isFinite(val) ? Math.round(val) : 0;
+    const str = String(val).trim();
+    if (!str) return 0;
+    // Em pt-BR, separador de milhar em vidas usa ponto (ex: "3.600", "26.654").
+    // Remove pontos de milhar, vírgulas e espaços.
+    const clean = str.replace(/\s+/g, '').replace(/\./g, '').replace(/,/g, '');
+    const num = parseInt(clean, 10);
     return isNaN(num) ? 0 : num;
+  },
+
+  parsePtBrNumber(valStr) {
+    if (valStr === null || valStr === undefined || valStr === '') return 0;
+    if (typeof valStr === 'number') return Number.isFinite(valStr) ? valStr : 0;
+    const str = String(valStr).trim().replace(/^R\$\s*/i, '').trim();
+    if (!str) return 0;
+    let normalized = str;
+    if (normalized.includes(',') && normalized.includes('.')) {
+      normalized = normalized.replace(/\./g, '').replace(',', '.');
+    } else if (normalized.includes(',')) {
+      normalized = normalized.replace(',', '.');
+    } else if (normalized.includes('.')) {
+      // Se tiver ponto sem vírgula no padrão pt-BR de números inteiros/milhar
+      normalized = normalized.replace(/\./g, '');
+    }
+    const num = parseFloat(normalized);
+    return isNaN(num) ? 0 : num;
+  },
+
+  parseCurrency(valStr) {
+    return this.parsePtBrNumber(valStr);
   },
 
   formatCurrency(num) {
@@ -73,7 +95,7 @@ const BusinessRules = {
   },
 
   calculateRevenue(lives, tkm) {
-    const livesNum = parseInt(lives, 10) || 0;
+    const livesNum = this.parseLives(lives);
     const tkmNum = this.parseCurrency(tkm);
     const total = Math.round((livesNum * tkmNum) * 100) / 100;
     return {
@@ -114,7 +136,9 @@ const BusinessRules = {
 
   determineAptitude(temperature) {
     if (!temperature) return '';
-    if (temperature === 'Declinado pela SB Saúde') {
+    const t = String(temperature).trim();
+    if (!t) return '';
+    if (t === 'Declinado pela SB Saúde') {
       return 'Inapto';
     }
     return 'Apto';
