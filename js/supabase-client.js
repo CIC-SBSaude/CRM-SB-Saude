@@ -17,20 +17,39 @@
     return 'http://127.0.0.1:56321';
   }
 
+  function getEffectiveSupabaseUrl() {
+    const defaultUrl = getDefaultSupabaseUrl();
+    const storedUrl = typeof localStorage !== 'undefined' ? localStorage.getItem('CRM_SUPABASE_URL') : null;
+    if (!storedUrl) return defaultUrl;
+
+    let currentHost = '127.0.0.1';
+    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+      currentHost = window.location.hostname;
+    }
+
+    try {
+      const parsed = new URL(storedUrl);
+      const isLoopbackStored = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+      const isLoopbackCurrent = currentHost === 'localhost' || currentHost === '127.0.0.1';
+      if ((isLoopbackStored && isLoopbackCurrent) || parsed.hostname === currentHost) {
+        return storedUrl;
+      }
+      // Se storedUrl apontar para outro host/IP obsoleto de outra rede, descarta e sincroniza com a origem
+      if (typeof localStorage !== 'undefined') {
+        try { localStorage.setItem('CRM_SUPABASE_URL', defaultUrl); } catch (e) {}
+      }
+      return defaultUrl;
+    } catch (e) {
+      return defaultUrl;
+    }
+  }
+
   const DEFAULT_SUPABASE_URL = getDefaultSupabaseUrl();
   const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 
   class SBClient {
     constructor() {
-      const storedUrl = typeof localStorage !== 'undefined' ? localStorage.getItem('CRM_SUPABASE_URL') : null;
-      const defaultUrl = getDefaultSupabaseUrl();
-      // Se a URL salva for 127.0.0.1 mas a página está aberta via IP da rede, atualiza dinamicamente
-      if (storedUrl && (storedUrl.includes('127.0.0.1') || storedUrl.includes('localhost')) && defaultUrl !== 'http://127.0.0.1:56321') {
-        this.url = defaultUrl;
-        try { localStorage.setItem('CRM_SUPABASE_URL', defaultUrl); } catch (e) {}
-      } else {
-        this.url = storedUrl || defaultUrl;
-      }
+      this.url = getEffectiveSupabaseUrl();
       this.anonKey = (typeof localStorage !== 'undefined' ? localStorage.getItem('CRM_SUPABASE_ANON_KEY') : null) || DEFAULT_ANON_KEY;
       this.client = null;
       this.isConnected = false;
@@ -147,6 +166,53 @@
       }
     }
 
+    mapDbProposalToCrm(p) {
+      if (!p) return null;
+      return {
+        _RowNumber: p.row_number,
+        ID: String(p.id),
+        DATA_DA_PROSPECCAO: p.data_da_prospeccao,
+        EMPRESA: p.empresa,
+        CNPJ: p.cnpj,
+        COMPETENCIA: p.competencia,
+        VIDAS: p.vidas,
+        CIDADE: p.cidade,
+        UF: p.uf,
+        TKM: p.tkm,
+        FATURAMENTO: p.faturamento,
+        ACOMODACAO: p.acomodacao,
+        FATOR_MODERADOR: p.fator_moderador,
+        POLITICA_COPARTICIPACAO: p.politica_coparticipacao,
+        CORRETORES_1: p.corretores_1,
+        CORRETORES_2: p.corretores_2,
+        CORRETORES_3: p.corretores_3,
+        AGENCIAMENTO_1: p.agenciamento_1,
+        AGENCIAMENTO_2: p.agenciamento_2,
+        AGENCIAMENTO_3: p.agenciamento_3,
+        VITALICIO_1: p.vitalicio_1,
+        VITALICIO_2: p.vitalicio_2,
+        VITALICIO_3: p.vitalicio_3,
+        PLANO_CAMPANHA: p.plano_campanha,
+        Status_Campanha: p.status_campanha,
+        TEMPERATURA_CONTRATO: p.temperatura_contrato,
+        Usuario: p.usuario,
+        Data_Inclusao: p.data_inclusao,
+        Hora_Inclusao: p.hora_inclusao,
+        Aptidao: p.aptidao,
+        Tipo_Contrato: p.tipo_contrato,
+        Qnt_Faixa_Etaria: p.qnt_faixa_etaria,
+        Faixa_Etaria: p.faixa_etaria,
+        Data_Analise_tecnica: p.data_analise_tecnica,
+        Data_Avaliacao_Diretoria: p.data_avaliacao_diretoria,
+        Data_Envio_Corretor: p.data_envio_corretor,
+        Motivo_Declinio: p.motivo_declinio,
+        Observacao: p.observacao,
+        Conversao_Solus: p.conversao_solus,
+        Status_Contrato: p.status_contrato,
+        Plataforma: p.plataforma
+      };
+    }
+
     // ==========================================
     // MÉTODOS DE LEITURA (SELECT)
     // ==========================================
@@ -238,49 +304,7 @@
         this.lastSyncTime = new Date().toISOString();
 
         // 4. Normalizar colunas do PostgreSQL para o formato esperado pelo CRM
-        return allRows.map(p => ({
-          _RowNumber: p.row_number,
-          ID: String(p.id),
-          DATA_DA_PROSPECCAO: p.data_da_prospeccao,
-          EMPRESA: p.empresa,
-          CNPJ: p.cnpj,
-          COMPETENCIA: p.competencia,
-          VIDAS: p.vidas,
-          CIDADE: p.cidade,
-          UF: p.uf,
-          TKM: p.tkm,
-          FATURAMENTO: p.faturamento,
-          ACOMODACAO: p.acomodacao,
-          FATOR_MODERADOR: p.fator_moderador,
-          POLITICA_COPARTICIPACAO: p.politica_coparticipacao,
-          CORRETORES_1: p.corretores_1,
-          CORRETORES_2: p.corretores_2,
-          CORRETORES_3: p.corretores_3,
-          AGENCIAMENTO_1: p.agenciamento_1,
-          AGENCIAMENTO_2: p.agenciamento_2,
-          AGENCIAMENTO_3: p.agenciamento_3,
-          VITALICIO_1: p.vitalicio_1,
-          VITALICIO_2: p.vitalicio_2,
-          VITALICIO_3: p.vitalicio_3,
-          PLANO_CAMPANHA: p.plano_campanha,
-          Status_Campanha: p.status_campanha,
-          TEMPERATURA_CONTRATO: p.temperatura_contrato,
-          Usuario: p.usuario,
-          Data_Inclusao: p.data_inclusao,
-          Hora_Inclusao: p.hora_inclusao,
-          Aptidao: p.aptidao,
-          Tipo_Contrato: p.tipo_contrato,
-          Qnt_Faixa_Etaria: p.qnt_faixa_etaria,
-          Faixa_Etaria: p.faixa_etaria,
-          Data_Analise_tecnica: p.data_analise_tecnica,
-          Data_Avaliacao_Diretoria: p.data_avaliacao_diretoria,
-          Data_Envio_Corretor: p.data_envio_corretor,
-          Motivo_Declinio: p.motivo_declinio,
-          Observacao: p.observacao,
-          Conversao_Solus: p.conversao_solus,
-          Status_Contrato: p.status_contrato,
-          Plataforma: p.plataforma
-        }));
+        return allRows.map(p => this.mapDbProposalToCrm(p));
       } catch (err) {
         this.syncState = 'error';
         this.lastSyncError = err.message;
@@ -372,12 +396,121 @@
       }
     }
 
+    getSessionToken() {
+      if (this.sessionToken) return this.sessionToken;
+      try {
+        const fromSession = sessionStorage.getItem('crm_session_token');
+        if (fromSession) {
+          this.sessionToken = fromSession;
+          return fromSession;
+        }
+        const sessionData = localStorage.getItem('crm_auth_session');
+        if (sessionData) {
+          const parsed = JSON.parse(sessionData);
+          if (parsed && parsed.sessionToken) {
+            this.sessionToken = parsed.sessionToken;
+            return parsed.sessionToken;
+          }
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    async login(identifier, password) {
+      if (!this.client) {
+        return { success: false, error_code: 'CLIENT_OFFLINE', message: 'Cliente Supabase não inicializado ou offline.' };
+      }
+      if (!identifier || typeof password !== 'string' || password.length === 0) {
+        return { success: false, error_code: 'INVALID_CREDENTIALS', message: 'Por favor, informe seu usuário ou e-mail e a senha de acesso.' };
+      }
+
+      // Preserva a senha exatamente como digitada (sem trim) e normaliza identificador
+      const cleanUser = String(identifier).trim();
+      const rawPassword = String(password);
+
+      try {
+        const { data, error } = await this.client.rpc('auth_login', {
+          p_user: cleanUser,
+          p_password: rawPassword
+        });
+        if (error) {
+          console.warn('[Supabase] Erro ao invocar auth_login RPC:', error.message);
+          return { success: false, error_code: 'RPC_ERROR', message: error.message };
+        }
+        if (data && data.success && data.session_token) {
+          this.sessionToken = data.session_token;
+          try {
+            sessionStorage.setItem('crm_session_token', data.session_token);
+          } catch (e) {}
+        }
+        return data || { success: false, error_code: 'EMPTY_RESPONSE', message: 'Resposta vazia do servidor.' };
+      } catch (err) {
+        console.warn('[Supabase] Exceção ao invocar login RPC:', err);
+        return { success: false, error_code: 'NETWORK_ERROR', message: err?.message || String(err) };
+      }
+    }
+
+    async resetPassword(targetUsername, newPassword) {
+      if (!this.client) {
+        return { success: false, error_code: 'CLIENT_OFFLINE', error: 'Cliente Supabase não inicializado ou offline.' };
+      }
+      const token = this.getSessionToken();
+      if (!token) {
+        return { success: false, error_code: 'UNAUTHORIZED', error: 'Sessão administrativa não autenticada no servidor.' };
+      }
+      const cleanTarget = String(targetUsername || '').trim();
+      const rawPassword = String(newPassword || '');
+
+      if (!cleanTarget) {
+        return { success: false, error_code: 'INVALID_DATA', error: 'Usuário alvo não especificado.' };
+      }
+      if (rawPassword.length < 6) {
+        return { success: false, error_code: 'WEAK_PASSWORD', error: 'A nova senha deve possuir no mínimo 6 caracteres.' };
+      }
+
+      try {
+        const { data, error } = await this.client.rpc('admin_reset_password', {
+          p_session_token: token,
+          p_target_username: cleanTarget,
+          p_new_password: rawPassword
+        });
+        if (error) {
+          console.warn('[Supabase] Erro ao invocar admin_reset_password:', error.message);
+          return { success: false, error_code: 'RPC_ERROR', error: error.message };
+        }
+        if (!data || data.success === false) {
+          return { success: false, error_code: data?.error_code || 'RESET_FAILED', error: data?.message || 'Falha ao redefinir senha no servidor.' };
+        }
+
+        // Leitura de verificação autorizada: confirmar que o registro foi atualizado no banco
+        try {
+          const { data: verifyUser, error: verifyErr } = await this.client
+            .from('users')
+            .select('username, updated_at, status')
+            .ilike('username', cleanTarget)
+            .limit(1)
+            .maybeSingle();
+
+          if (!verifyErr && verifyUser) {
+            data.verified_user = verifyUser;
+          }
+        } catch (ve) {
+          console.warn('[Supabase] Aviso ao verificar atualização de usuário:', ve);
+        }
+
+        return data;
+      } catch (err) {
+        console.error('[Supabase] Exceção ao redefinir senha:', err);
+        return { success: false, error_code: 'NETWORK_ERROR', error: err?.message || String(err) };
+      }
+    }
+
     async fetchUsers() {
       if (!this.client) return null;
       try {
         const { data, error } = await this.client
           .from('users')
-          .select('*')
+          .select('id, row_number, user_code, username, name, email, role, profile, status, two_factor, last_login, ip, avatar, created_at, updated_at')
           .order('id', { ascending: true });
 
         if (error) throw error;
@@ -389,10 +522,9 @@
           role: u.role || 'Consultor Comercial',
           profile: u.profile || (u.username === 'ADMINISTRADOR' ? 'Administrador Master' : (u.role || 'Consultor Comercial')),
           status: u.status || 'Ativo',
-          password: u.password_hash || (u.username === 'ADMINISTRADOR' ? 'admin.admin' : 'SbSaude@2026'),
           twoFactor: u.two_factor ?? true,
           lastLogin: u.last_login || 'Primeiro acesso pendente',
-          ip: u.ip || '192.168.10.1',
+          ip: u.ip || null,
           avatar: u.avatar || (u.name ? u.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : u.username.slice(0, 2)),
           createdAt: u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '21/09/2026'
         }));
@@ -587,34 +719,33 @@
         return { success: false, error: 'Cliente Supabase não inicializado ou offline.' };
       }
       try {
-        const username = (u.login || u.username || '').trim();
+        const username = (u.login || u.username || '').trim().toUpperCase();
         if (!username) {
           return { success: false, error: 'Login / Usuário obrigatório.' };
         }
 
-        const record = {
-          user_code: u.id || null,
-          username: username.toUpperCase(),
-          name: u.name || username,
-          email: u.email || null,
-          role: u.role || 'Consultor Comercial',
-          profile: u.profile || 'Consultor Comercial',
-          status: u.status || 'Ativo',
-          password_hash: u.password || 'SbSaude@2026',
-          two_factor: u.twoFactor !== false,
-          last_login: u.lastLogin || null,
-          ip: u.ip || null,
-          avatar: u.avatar || null,
-          updated_at: new Date().toISOString()
-        };
-
-        const { data, error } = await this.client
-          .from('users')
-          .upsert(record, { onConflict: 'username' })
-          .select();
+        const token = this.getSessionToken();
+        const { data, error } = await this.client.rpc('admin_save_user', {
+          p_session_token: token,
+          p_user_data: {
+            user_code: u.id || null,
+            username: username,
+            name: u.name || username,
+            email: u.email || null,
+            role: u.role || 'Consultor Comercial',
+            profile: u.profile || (username === 'ADMINISTRADOR' ? 'Administrador Master' : (u.role || 'Consultor Comercial')),
+            status: u.status || 'Ativo',
+            two_factor: u.twoFactor !== false,
+            avatar: u.avatar || null,
+            password: u.password || null
+          }
+        });
 
         if (error) throw error;
-        console.log(`[Supabase] Usuário ${record.username} gravado com sucesso no banco.`);
+        if (data && data.success === false) {
+          throw new Error(data.message || 'Falha ao salvar usuário no servidor.');
+        }
+        console.log(`[Supabase] Perfil do usuário ${username} salvo via RPC com sucesso.`);
         return { success: true, data };
       } catch (err) {
         console.error('[Supabase] Erro ao salvar usuário no banco:', err);
@@ -625,33 +756,10 @@
     async syncAllUsers(users) {
       if (!this.client || !Array.isArray(users)) return false;
       try {
-        const records = users.map(u => {
-          const username = (u.login || u.username || '').trim().toUpperCase();
-          return {
-            user_code: u.id || null,
-            username,
-            name: u.name || username,
-            email: u.email || `${username.toLowerCase()}@sbsaude.com.br`,
-            role: u.role || 'Consultor Comercial',
-            profile: u.profile || (username === 'ADMINISTRADOR' ? 'Administrador Master' : (u.role || 'Consultor Comercial')),
-            status: u.status || 'Ativo',
-            password_hash: u.password || (username === 'ADMINISTRADOR' ? 'admin.admin' : 'SbSaude@2026'),
-            two_factor: u.twoFactor !== false,
-            last_login: u.lastLogin || null,
-            ip: u.ip || null,
-            avatar: u.avatar || null,
-            updated_at: new Date().toISOString()
-          };
-        }).filter(r => Boolean(r.username));
-
-        if (records.length === 0) return true;
-
-        const { error } = await this.client
-          .from('users')
-          .upsert(records, { onConflict: 'username' });
-
-        if (error) throw error;
-        console.log(`[Supabase] ${records.length} usuário(s) sincronizados em lote com sucesso.`);
+        for (const u of users) {
+          await this.saveUser(u);
+        }
+        console.log(`[Supabase] ${users.length} usuário(s) sincronizados com sucesso.`);
         return true;
       } catch (err) {
         console.error('[Supabase] Erro ao sincronizar lote de usuários:', err);
@@ -663,17 +771,39 @@
       if (!this.client) return false;
       try {
         const clean = String(loginOrId).trim().toUpperCase();
-        const { error } = await this.client
-          .from('users')
-          .delete()
-          .ilike('username', clean);
+        const token = this.getSessionToken();
+        const { data, error } = await this.client.rpc('admin_delete_user', {
+          p_session_token: token,
+          p_target_username: clean
+        });
 
         if (error) throw error;
-        console.log(`[Supabase] Usuário ${clean} removido do banco.`);
+        if (data && data.success === false) {
+          throw new Error(data.message || 'Falha ao excluir usuário.');
+        }
+        console.log(`[Supabase] Usuário ${clean} removido do banco via RPC.`);
         return true;
       } catch (err) {
         console.error('[Supabase] Erro ao excluir usuário no banco:', err);
         return false;
+      }
+    }
+
+    async signOut() {
+      const token = this.getSessionToken();
+      if (token && this.client) {
+        try {
+          await this.client.rpc('auth_logout', { p_session_token: token });
+        } catch (e) {}
+      }
+      this.sessionToken = null;
+      try {
+        sessionStorage.removeItem('crm_session_token');
+      } catch (e) {}
+      if (this.client && this.client.auth && typeof this.client.auth.signOut === 'function') {
+        try {
+          await this.client.auth.signOut();
+        } catch (e) {}
       }
     }
 
@@ -695,7 +825,9 @@
             payload => {
               console.log('[Supabase Realtime] Evento na tabela proposals:', payload.eventType, payload.new?.id || payload.old?.id);
               if (typeof callbacks.onProposalChange === 'function') {
-                callbacks.onProposalChange(payload);
+                const mappedNew = payload.new ? this.mapDbProposalToCrm(payload.new) : null;
+                const mappedOld = payload.old ? { id: String(payload.old.id), ID: String(payload.old.id) } : null;
+                callbacks.onProposalChange({ ...payload, newProposal: mappedNew, oldProposal: mappedOld });
               }
             }
           )
@@ -729,8 +861,12 @@
               }
             }
           )
-          .subscribe(status => {
-            console.log('[Supabase Realtime] Status da inscrição:', status);
+          .subscribe((status, err) => {
+            console.log('[Supabase Realtime] Status da inscrição:', status, err || '');
+            this.realtimeStatus = status;
+            if (typeof callbacks.onStatusChange === 'function') {
+              callbacks.onStatusChange(status, err);
+            }
           });
       } catch (err) {
         console.warn('[Supabase] Falha ao configurar canal Realtime:', err);

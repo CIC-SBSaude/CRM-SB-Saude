@@ -3897,6 +3897,122 @@ body {
   margin-top: 2px;
 }
 
+.exec-insight-card.interactive {
+  cursor: pointer;
+  position: relative;
+}
+
+.exec-insight-card.interactive:hover {
+  transform: translateY(-2px);
+  border-color: #3b82f6;
+  box-shadow: 0 6px 16px -2px rgba(59, 130, 246, 0.12);
+}
+
+.exec-insight-action {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #2563eb;
+  margin-top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.15s ease;
+}
+
+.exec-insight-card.interactive:hover .exec-insight-action {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.exec-insights-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.insights-control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.insights-control-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.insights-select {
+  height: 28px !important;
+  font-size: 0.72rem !important;
+  padding: 0 0.5rem !important;
+  border-radius: 6px !important;
+}
+
+.insights-custom-dates {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.insights-date-input {
+  width: 90px;
+  height: 28px;
+  padding: 0 0.4rem;
+  font-size: 0.72rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #0b1c30;
+}
+
+.insights-scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  color: #64748b;
+  background-color: #f8fafc;
+  border: 1px solid #edf2f7;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  flex-wrap: wrap;
+}
+
+.scope-info-item strong {
+  color: #334155;
+}
+
+.scope-info-divider {
+  color: #cbd5e1;
+}
+
+.insights-realtime-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.insights-realtime-badge.live {
+  background-color: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.insights-realtime-badge.stale {
+  background-color: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
 /* 4. Middle Section (7:5 Split) */
 .exec-middle-grid {
   display: grid;
@@ -7914,6 +8030,43 @@ html[data-theme="dark"],
 
 [data-theme="dark"] .exec-insight-desc {
   color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .insights-scope-bar {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .scope-info-item strong {
+  color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] .insights-date-input {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .exec-insight-card.interactive:hover {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 6px 16px -2px rgba(59, 130, 246, 0.25) !important;
+}
+
+[data-theme="dark"] .exec-insight-action {
+  color: #60a5fa !important;
+}
+
+[data-theme="dark"] .insights-realtime-badge.live {
+  background-color: rgba(6, 95, 70, 0.25) !important;
+  color: #34d399 !important;
+  border-color: #065f46 !important;
+}
+
+[data-theme="dark"] .insights-realtime-badge.stale {
+  background-color: rgba(146, 64, 14, 0.25) !important;
+  color: #fbbf24 !important;
+  border-color: #78350f !important;
 }
 
 /* Dashboard Middle Grid (Gráfico & Funil) */

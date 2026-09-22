@@ -84,9 +84,16 @@ async function runTests() {
   assert.strictEqual(supaProposals.length, 5, 'Deve retornar 5 propostas via Supabase client');
   console.log(`✓ Teste 4.2: Supabase JS Client consultou ${supaProposals.length} propostas com sucesso via REST API.`);
 
-  // Teste 5: Criação, alteração e exclusão de Usuário no Supabase
+  // Teste 5: Criação, alteração e exclusão de Usuário via RPC Segura no Supabase
   const testUsername = 'TESTE_SBSAÚDE_' + Date.now();
-  const testUserRecord = {
+  const { data: authAdm } = await supabase.rpc('auth_login', {
+    p_user: 'ADMINISTRADOR',
+    p_password: 'admin.admin'
+  });
+  assert.ok(authAdm && authAdm.session_token, 'Autenticação de administrador deve retornar session_token');
+  const admToken = authAdm.session_token;
+
+  const testUserData = {
     user_code: 'USR-999',
     username: testUsername,
     name: 'Usuário Teste Supabase',
@@ -94,34 +101,50 @@ async function runTests() {
     role: 'Supervisor Comercial',
     profile: 'Supervisor Comercial',
     status: 'Ativo',
-    password_hash: 'Teste@2026',
-    two_factor: true,
-    last_login: 'Primeiro acesso pendente',
-    ip: '192.168.10.99',
+    password: 'Teste@2026',
+    twoFactor: true,
     avatar: 'UT'
   };
 
-  const { error: userInsertErr } = await supabase.from('users').upsert(testUserRecord, { onConflict: 'username' });
-  assert.strictEqual(userInsertErr, null, 'Inserção de usuário no Supabase não deve dar erro');
+  const { data: userInsertRes, error: userInsertErr } = await supabase.rpc('admin_save_user', {
+    p_session_token: admToken,
+    p_user_data: testUserData
+  });
+  assert.strictEqual(userInsertErr, null, 'Inserção de usuário via RPC não deve dar erro');
+  assert.strictEqual(userInsertRes.success, true);
   console.log('✓ Teste 5.1: Usuário gravado com sucesso no Supabase.');
 
-  const { data: fetchedUser, error: fetchErr } = await supabase.from('users').select('*').eq('username', testUsername).single();
+  const { data: fetchedUser, error: fetchErr } = await supabase.from('users')
+    .select('id, username, name, role, status')
+    .eq('username', testUsername)
+    .single();
   assert.strictEqual(fetchErr, null, 'Consulta de usuário recém-criado não deve dar erro');
   assert.strictEqual(fetchedUser.name, 'Usuário Teste Supabase');
   assert.strictEqual(fetchedUser.role, 'Supervisor Comercial');
   assert.strictEqual(fetchedUser.status, 'Ativo');
   console.log('✓ Teste 5.2: Usuário consultado e verificado no Supabase com sucesso.');
 
-  // Atualização de Usuário
-  const { error: updateErr } = await supabase.from('users').update({ status: 'Bloqueado' }).eq('username', testUsername);
+  // Atualização de Usuário via RPC
+  const { data: updateRes, error: updateErr } = await supabase.rpc('admin_save_user', {
+    p_session_token: admToken,
+    p_user_data: {
+      username: testUsername,
+      status: 'Bloqueado'
+    }
+  });
   assert.strictEqual(updateErr, null, 'Atualização de usuário não deve dar erro');
+  assert.strictEqual(updateRes.success, true);
   const { data: updatedUser } = await supabase.from('users').select('status').eq('username', testUsername).single();
   assert.strictEqual(updatedUser.status, 'Bloqueado', 'Status do usuário deve ter sido atualizado para Bloqueado');
   console.log('✓ Teste 5.3: Usuário atualizado no Supabase com sucesso.');
 
-  // Exclusão de Usuário
-  const { error: deleteErr } = await supabase.from('users').delete().eq('username', testUsername);
+  // Exclusão de Usuário via RPC
+  const { data: delRes, error: deleteErr } = await supabase.rpc('admin_delete_user', {
+    p_session_token: admToken,
+    p_target_username: testUsername
+  });
   assert.strictEqual(deleteErr, null, 'Exclusão de usuário não deve dar erro');
+  assert.strictEqual(delRes.success, true);
   const { data: deletedCheck } = await supabase.from('users').select('id').eq('username', testUsername);
   assert.strictEqual(deletedCheck.length, 0, 'Usuário deve ter sido excluído com sucesso');
   console.log('✓ Teste 5.4: Usuário excluído do Supabase com sucesso.');

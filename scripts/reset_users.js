@@ -1,6 +1,12 @@
 const { Client } = require('pg');
 
 async function resetUsers() {
+  if (process.env.CONFIRM_RESET_USERS !== 'TRUE') {
+    console.error('❌ ERRO DE SEGURANÇA: reset_users.js é uma operação destrutiva.');
+    console.error('Para confirmar sua execução deliberada, defina a variável: CONFIRM_RESET_USERS=TRUE');
+    process.exit(1);
+  }
+
   const client = new Client({
     host: '127.0.0.1',
     port: 56322,

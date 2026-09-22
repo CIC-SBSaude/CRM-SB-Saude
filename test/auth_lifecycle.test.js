@@ -290,7 +290,10 @@ try {
 
   // 5. Asserções do Teste 5: Credenciais Inválidas
   assert.strictEqual(res.invalidLogin.alertVisible, true, 'Alerta de erro deve ser exibido');
-  assert.strictEqual(res.invalidLogin.errorMsg, 'Usuário não encontrado. O acesso é restrito exclusivamente aos usuários cadastrados pelos administradores.');
+  assert.ok(
+    res.invalidLogin.errorMsg.includes('Credenciais incorretas') || res.invalidLogin.errorMsg.includes('Usuário não encontrado'),
+    'Mensagem de erro de credenciais deve ser exibida ao usuário'
+  );
   assert.strictEqual(res.invalidLogin.btnDisabled, false, 'Botão deve voltar a habilitado após falha');
   assert.strictEqual(res.invalidLogin.btnHasSpinner, false, 'Spinner deve ser encerrado após falha');
   assert.strictEqual(res.invalidLogin.btnText, 'Entrar no Sistema', 'Texto deve retornar a "Entrar no Sistema"');

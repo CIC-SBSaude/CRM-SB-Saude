@@ -253,10 +253,10 @@ async function migrate() {
          role = EXCLUDED.role,
          profile = EXCLUDED.profile,
          status = EXCLUDED.status,
-         password_hash = EXCLUDED.password_hash,
+         password_hash = COALESCE(public.users.password_hash, EXCLUDED.password_hash),
          two_factor = EXCLUDED.two_factor,
-         last_login = EXCLUDED.last_login,
-         ip = EXCLUDED.ip,
+         last_login = COALESCE(public.users.last_login, EXCLUDED.last_login),
+         ip = COALESCE(public.users.ip, EXCLUDED.ip),
          avatar = EXCLUDED.avatar,
          updated_at = NOW()`,
       [

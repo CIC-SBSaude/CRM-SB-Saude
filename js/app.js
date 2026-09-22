@@ -28,7 +28,7 @@
     // converge para a base íntegra completa de 1.072 registros, preservando quaisquer edições locais por ID.
     if (window.CRM_INITIAL_DATA && Array.isArray(window.CRM_INITIAL_DATA.proposals)) {
       const refCount = window.CRM_INITIAL_DATA.proposals.length;
-      if (!appData || !Array.isArray(appData.proposals) || appData.proposals.length < refCount) {
+      if (!appData || !Array.isArray(appData.proposals) || (appData.proposals.length < refCount && (!window.crmSupabase || !window.crmSupabase.isConnected))) {
         console.warn(`[DataStore] Cache legado de propostas detectado (${appData?.proposals?.length || 0} registros). Convergindo para a coleção de referência (${refCount} registros).`);
         const localEditedMap = new Map();
         if (appData && Array.isArray(appData.proposals)) {
@@ -152,72 +152,48 @@
 
       // Configuração Realtime
       window.crmSupabase.setupRealtime({
+        onStatusChange: (status, err) => {
+          dashboardState.realtimeStatus = status;
+          if (status === 'SUBSCRIBED') {
+            dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
+          }
+          if (typeof updateInsightsRealtimeBadge === 'function') {
+            updateInsightsRealtimeBadge();
+          }
+        },
         onProposalChange: (payload) => {
+          const mapProposal = (dbP) => {
+            if (!dbP) return null;
+            return (window.crmSupabase && typeof window.crmSupabase.mapDbProposalToCrm === 'function')
+              ? window.crmSupabase.mapDbProposalToCrm(dbP)
+              : dbP;
+          };
+
           if (payload.eventType === 'INSERT') {
-            const newP = payload.new;
-            if (!appData.proposals.some(p => String(p.ID) === String(newP.id))) {
-              appData.proposals.unshift({
-                _RowNumber: newP.row_number,
-                ID: newP.id,
-                DATA_DA_PROSPECCAO: newP.data_da_prospeccao,
-                EMPRESA: newP.empresa,
-                CNPJ: newP.cnpj,
-                COMPETENCIA: newP.competencia,
-                VIDAS: newP.vidas,
-                CIDADE: newP.cidade,
-                UF: newP.uf,
-                TKM: newP.tkm,
-                FATURAMENTO: newP.faturamento,
-                ACOMODACAO: newP.acomodacao,
-                FATOR_MODERADOR: newP.fator_moderador,
-                POLITICA_COPARTICIPACAO: newP.politica_coparticipacao,
-                CORRETORES_1: newP.corretores_1,
-                CORRETORES_2: newP.corretores_2,
-                CORRETORES_3: newP.corretores_3,
-                AGENCIAMENTO_1: newP.agenciamento_1,
-                AGENCIAMENTO_2: newP.agenciamento_2,
-                AGENCIAMENTO_3: newP.agenciamento_3,
-                VITALICIO_1: newP.vitalicio_1,
-                VITALICIO_2: newP.vitalicio_2,
-                VITALICIO_3: newP.vitalicio_3,
-                PLANO_CAMPANHA: newP.plano_campanha,
-                Status_Campanha: newP.status_campanha,
-                TEMPERATURA_CONTRATO: newP.temperatura_contrato,
-                Usuario: newP.usuario,
-                Data_Inclusao: newP.data_inclusao,
-                Hora_Inclusao: newP.hora_inclusao,
-                Aptidao: newP.aptidao,
-                Tipo_Contrato: newP.tipo_contrato,
-                Qnt_Faixa_Etaria: newP.qnt_faixa_etaria,
-                Faixa_Etaria: newP.faixa_etaria,
-                Data_Analise_tecnica: newP.data_analise_tecnica,
-                Data_Avaliacao_Diretoria: newP.data_avaliacao_diretoria,
-                Data_Envio_Corretor: newP.data_envio_corretor,
-                Motivo_Declinio: newP.motivo_declinio,
-                Observacao: newP.observacao,
-                Conversao_Solus: newP.conversao_solus,
-                Status_Contrato: newP.status_contrato,
-                Plataforma: newP.plataforma
-              });
+            const newP = payload.newProposal || mapProposal(payload.new);
+            if (newP && !appData.proposals.some(p => String(p.ID) === String(newP.ID))) {
+              appData.proposals.unshift(newP);
               saveDataStore();
+              dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
               if (typeof renderView === 'function') renderView();
             }
           } else if (payload.eventType === 'UPDATE') {
-            const newP = payload.new;
-            const idx = appData.proposals.findIndex(p => String(p.ID) === String(newP.id));
-            if (idx !== -1) {
-              appData.proposals[idx].TEMPERATURA_CONTRATO = newP.temperatura_contrato;
-              appData.proposals[idx].Aptidao = newP.aptidao;
-              appData.proposals[idx].FATURAMENTO = newP.faturamento;
-              appData.proposals[idx].EMPRESA = newP.empresa;
-              saveDataStore();
-              if (typeof renderView === 'function') renderView();
+            const updatedP = payload.newProposal || mapProposal(payload.new);
+            if (updatedP) {
+              const idx = appData.proposals.findIndex(p => String(p.ID) === String(updatedP.ID));
+              if (idx !== -1) {
+                appData.proposals[idx] = Object.assign({}, appData.proposals[idx], updatedP);
+                saveDataStore();
+                dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
+                if (typeof renderView === 'function') renderView();
+              }
             }
           } else if (payload.eventType === 'DELETE') {
-            const delId = payload.old?.id;
+            const delId = payload.old?.id || payload.oldProposal?.ID;
             if (delId) {
               appData.proposals = appData.proposals.filter(p => String(p.ID) !== String(delId));
               saveDataStore();
+              dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
               if (typeof renderView === 'function') renderView();
             }
           }
@@ -275,10 +251,9 @@
               role: u.role || 'Consultor Comercial',
               profile: u.profile || 'Consultor Comercial',
               status: u.status || 'Ativo',
-              password: u.password_hash || 'SbSaude@2026',
               twoFactor: u.two_factor ?? true,
               lastLogin: u.last_login || 'Primeiro acesso pendente',
-              ip: u.ip || '192.168.10.1',
+              ip: u.ip || null,
               avatar: u.avatar || (u.name ? u.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : u.username.slice(0, 2)),
               createdAt: u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '21/09/2026'
             };
@@ -308,8 +283,9 @@
   }
 
   // Estado da Aplicação
+  const initialHashTab = (typeof window !== 'undefined' && window.location.hash) ? window.location.hash.replace('#', '') : '';
   const state = {
-    currentTab: 'dashboard',
+    currentTab: initialHashTab || 'dashboard',
     proposalsViewMode: 'kanban', // 'kanban' | 'table'
     selectedProposal: null,
     editingProposalId: null,
@@ -514,9 +490,65 @@
   const dashboardState = {
     mainMetric: 'revenue_by_competence',
     chartType: 'bar',
-    periodFilter: 'all'
+    periodFilter: 'all',
+    insightsPeriod: 'all',
+    insightsDateField: 'prospeccao',
+    insightsDateFrom: '',
+    insightsDateTo: '',
+    realtimeStatus: 'CONNECTING',
+    lastSyncTime: new Date().toLocaleTimeString('pt-BR')
   };
   let mainChartInstance = null;
+
+  function updateInsightsRealtimeBadge() {
+    const badge = document.getElementById('insights-realtime-badge');
+    const syncTime = document.getElementById('insights-last-sync');
+    if (badge) {
+      if (dashboardState.realtimeStatus === 'SUBSCRIBED') {
+        badge.className = 'insights-realtime-badge live';
+        badge.innerHTML = '● Supabase Realtime Ativo';
+        badge.title = 'Conexão ativa com o Supabase Realtime local';
+      } else {
+        badge.className = 'insights-realtime-badge stale';
+        badge.innerHTML = '⚠️ Dados possivelmente desatualizados';
+        badge.title = `Status da conexão: ${dashboardState.realtimeStatus || 'Desconectado'}`;
+      }
+    }
+    if (syncTime && dashboardState.lastSyncTime) {
+      syncTime.textContent = dashboardState.lastSyncTime;
+    }
+  }
+
+  // Reconciliação periódica e por foco de janela
+  if (typeof window !== 'undefined' && !window._insightsReconcileBound) {
+    window._insightsReconcileBound = true;
+    window.addEventListener('focus', () => {
+      if (window.crmSupabase && window.crmSupabase.isConnected && typeof window.crmSupabase.fetchProposals === 'function') {
+        window.crmSupabase.fetchProposals().then(res => {
+          if (res && res.data && res.data.length > 0) {
+            appData.proposals = res.data;
+            saveDataStore();
+            dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
+            if (typeof state !== 'undefined' && state.currentTab === 'dashboard') {
+              const container = document.getElementById('app');
+              if (container) renderDashboard(container);
+            }
+          }
+        }).catch(err => console.warn('[Realtime Focus Reconcile]', err));
+      }
+    });
+
+    window.addEventListener('online', () => {
+      if (window.crmSupabase) {
+        window.crmSupabase.init();
+        dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
+        if (typeof state !== 'undefined' && state.currentTab === 'dashboard') {
+          const container = document.getElementById('app');
+          if (container) renderDashboard(container);
+        }
+      }
+    });
+  }
 
   // Funções Auxiliares do Dashboard Executivo
   function getCompanySubtitle(p) {
@@ -646,9 +678,17 @@
       }
     });
 
-    const conversionRate = totalCount > 0 ? ((closedCount / totalCount) * 100).toFixed(1) : '18.1';
-    const avgTkm = totalLives > 0 ? (totalRevenue / totalLives) : 209.76;
-    const insights = calculateStrategicInsights(proposals);
+    const conversionRate = totalCount > 0 ? ((closedCount / totalCount) * 100).toFixed(1) : '0,0';
+    const avgTkm = totalLives > 0 ? (totalRevenue / totalLives) : 0;
+    const insightsScope = {
+      period: dashboardState.insightsPeriod || 'all',
+      dateField: dashboardState.insightsDateField || 'prospeccao',
+      dateFrom: dashboardState.insightsDateFrom || '',
+      dateTo: dashboardState.insightsDateTo || ''
+    };
+    const insights = (window.StrategicInsights && typeof window.StrategicInsights.calculateFactualStrategicInsights === 'function')
+      ? window.StrategicInsights.calculateFactualStrategicInsights(proposals, insightsScope)
+      : calculateStrategicInsights(proposals);
 
     container.innerHTML = `
       <div class="dashboard-exec-view">
@@ -776,19 +816,71 @@
           </div>
         </div>
 
-        <!-- 3. Insights Estratégicos em Tempo Real -->
+        <!-- 3. Insights Estratégicos Fatuais em Tempo Real -->
         <div class="exec-insights-section">
           <div class="exec-insights-header">
             <div class="exec-insights-title-box">
               <span class="exec-insights-dot"></span>
               <span class="exec-insights-title">INSIGHTS ESTRATÉGICOS EM TEMPO REAL</span>
             </div>
-            <span class="exec-insights-sub">Calculados sobre as propostas no pipeline comercial</span>
+            
+            <div class="exec-insights-controls">
+              <div class="insights-control-group">
+                <label for="insights-period-select">Período:</label>
+                <select id="insights-period-select" class="insights-select">
+                  <option value="all" ${dashboardState.insightsPeriod === 'all' ? 'selected' : ''}>Todo o histórico</option>
+                  <option value="current_month" ${dashboardState.insightsPeriod === 'current_month' ? 'selected' : ''}>Mês atual</option>
+                  <option value="last_90_days" ${dashboardState.insightsPeriod === 'last_90_days' ? 'selected' : ''}>Últimos 90 dias</option>
+                  <option value="custom" ${dashboardState.insightsPeriod === 'custom' ? 'selected' : ''}>Personalizado</option>
+                </select>
+              </div>
+
+              <div id="insights-custom-dates" class="insights-custom-dates" style="${dashboardState.insightsPeriod === 'custom' ? 'display:flex;' : 'display:none;'}">
+                <input type="date" id="insights-date-from" class="insights-date-input" value="${dashboardState.insightsDateFrom || ''}" title="Data Inicial" />
+                <span style="color:var(--text-secondary); font-size:0.8rem;">até</span>
+                <input type="date" id="insights-date-to" class="insights-date-input" value="${dashboardState.insightsDateTo || ''}" title="Data Final" />
+              </div>
+
+              <div class="insights-control-group">
+                <label for="insights-date-field">Base Temporal:</label>
+                <select id="insights-date-field" class="insights-select">
+                  <option value="prospeccao" ${dashboardState.insightsDateField === 'prospeccao' ? 'selected' : ''}>Data da Prospecção</option>
+                  <option value="competencia" ${dashboardState.insightsDateField === 'competencia' ? 'selected' : ''}>Competência</option>
+                </select>
+              </div>
+
+              <button id="btn-refresh-insights" class="insights-btn-refresh" title="Sincronizar dados com o Supabase">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                <span>Atualizar</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Barra de Escopo e Metadados -->
+          <div class="insights-scope-bar">
+            <div class="insights-scope-info">
+              <span>Exibindo <strong>${insights.scope.filteredUniverse || insights.scope.totalUniverse}</strong> de <strong>${insights.scope.totalUniverse}</strong> propostas (${insights.scope.coveragePercent || '100,0'}%)</span>
+              <span class="insights-scope-sep">•</span>
+              <span>Base: <strong>${insights.scope.dateFieldLabel}</strong></span>
+              <span class="insights-scope-sep">•</span>
+              <span>Período: <strong>${insights.scope.periodLabel}</strong></span>
+            </div>
+            <div class="insights-scope-meta">
+              <span class="insights-sync-time">Última sinc.: <strong id="insights-last-sync">${dashboardState.lastSyncTime || '--:--:--'}</strong></span>
+              ${dashboardState.realtimeStatus === 'SUBSCRIBED' 
+                ? '<span class="insights-realtime-badge live" id="insights-realtime-badge" title="Conexão ativa com Supabase Realtime local">● Supabase Realtime Ativo</span>'
+                : '<span class="insights-realtime-badge stale" id="insights-realtime-badge" title="Canal desconectado ou em reconexão">⚠️ Dados possivelmente desatualizados</span>'
+              }
+            </div>
           </div>
 
           <div class="exec-insights-grid">
-            <!-- 1: Corretor Líder -->
-            <div class="exec-insight-card">
+            <!-- Card 1: Corretor com mais propostas -->
+            <div class="exec-insight-card interactive" data-insight="top-broker" title="Clique para auditar as propostas deste corretor">
               <div class="exec-insight-icon-box">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -796,15 +888,20 @@
                 </svg>
               </div>
               <div class="exec-insight-content">
-                <span class="exec-insight-category">CORRETOR LÍDER</span>
+                <span class="exec-insight-category">CORRETOR COM MAIS PROPOSTAS</span>
                 <div class="exec-insight-title">${insights.topBroker.name}</div>
-                <div class="exec-insight-stat">${insights.topBroker.count} propostas • ${insights.topBroker.formattedRevenue}</div>
-                <div class="exec-insight-desc">Maior gerador de volume de propostas no período selecionado.</div>
+                <div class="exec-insight-stat">${insights.topBroker.count > 0 ? `${insights.topBroker.count} propostas • ${insights.topBroker.closedCount} fechadas` : 'Sem propostas no período'}</div>
+                <div class="exec-insight-desc">
+                  ${insights.topBroker.count > 0 
+                    ? 'Considera titulares e co-corretores (1ª a 3ª posição) sem duplicidade.' 
+                    : 'Nenhum corretor identificado no escopo selecionado.'}
+                </div>
+                ${insights.topBroker.count > 0 ? `<div class="exec-insight-action">Auditar propostas (${insights.topBroker.count}) →</div>` : ''}
               </div>
             </div>
 
-            <!-- 2: Maior Negociação -->
-            <div class="exec-insight-card">
+            <!-- Card 2: Maior Proposta do Período -->
+            <div class="exec-insight-card interactive" data-insight="biggest-deal" title="Clique para abrir os detalhes desta proposta">
               <div class="exec-insight-icon-box">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="4" y="2" width="16" height="20" rx="2"></rect>
@@ -818,15 +915,18 @@
                 </svg>
               </div>
               <div class="exec-insight-content">
-                <span class="exec-insight-category">MAIOR NEGOCIAÇÃO</span>
-                <div class="exec-insight-title">${insights.biggestDeal.company}</div>
-                <div class="exec-insight-stat">${insights.biggestDeal.lives.toLocaleString('pt-BR')} vidas • ${insights.biggestDeal.formattedRevenue}</div>
-                <div class="exec-insight-desc">Proposta de maior volume financeiro em carteira.</div>
+                <span class="exec-insight-category">MAIOR PROPOSTA DO PERÍODO</span>
+                <div class="exec-insight-title">${insights.biggestProposal.company}</div>
+                <div class="exec-insight-stat">${insights.biggestProposal.revenueFormatted} • ${insights.biggestProposal.livesFormatted} vidas</div>
+                <div class="exec-insight-desc">
+                  ${insights.biggestProposal.id ? `ID #${insights.biggestProposal.id} • Status: <span class="exec-status-pill status-${insights.biggestProposal.status.toLowerCase().includes('fech') ? 'closed' : insights.biggestProposal.status.toLowerCase().includes('desist') ? 'desist' : 'default'}">${insights.biggestProposal.status}</span>` : 'Nenhuma proposta no período.'}
+                </div>
+                ${insights.biggestProposal.id ? `<div class="exec-insight-action">Abrir proposta #${insights.biggestProposal.id} →</div>` : ''}
               </div>
             </div>
 
-            <!-- 3: Região Destaque -->
-            <div class="exec-insight-card">
+            <!-- Card 3: UF com mais propostas -->
+            <div class="exec-insight-card interactive" data-insight="top-uf" title="Clique para auditar as propostas deste estado">
               <div class="exec-insight-icon-box">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
@@ -834,27 +934,32 @@
                 </svg>
               </div>
               <div class="exec-insight-content">
-                <span class="exec-insight-category">REGIÃO DESTAQUE</span>
-                <div class="exec-insight-title">Estado ${insights.topUf.uf}</div>
-                <div class="exec-insight-stat">${insights.topUf.count} propostas • ${insights.topUf.lives.toLocaleString('pt-BR')} vidas</div>
-                <div class="exec-insight-desc">Maior densidade geográfica de beneficiários e empresas cotadas.</div>
+                <span class="exec-insight-category">UF COM MAIS PROPOSTAS</span>
+                <div class="exec-insight-title">${insights.topUf.label}</div>
+                <div class="exec-insight-stat">${insights.topUf.count > 0 ? `${insights.topUf.count} propostas • ${insights.topUf.livesFormatted} vidas` : 'Sem propostas no período'}</div>
+                <div class="exec-insight-desc">
+                  ${insights.topUf.hasMultiUfProposals 
+                    ? 'Maior volume estadual. Propostas interestaduais vinculadas a cada UF participante.' 
+                    : 'Maior densidade geográfica de beneficiários e empresas cotadas.'}
+                </div>
+                ${insights.topUf.count > 0 ? `<div class="exec-insight-action">Auditar estado (${insights.topUf.count}) →</div>` : ''}
               </div>
             </div>
 
-            <!-- 4: Receita Ponderada (Simulação) -->
-            <div class="exec-insight-card">
+            <!-- Card 4: Faturamento em Propostas Fechadas -->
+            <div class="exec-insight-card interactive" data-insight="closed-revenue" title="Clique para listar todas as propostas fechadas no período">
               <div class="exec-insight-icon-box">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="12" width="4" height="8" rx="1"></rect>
-                  <rect x="10" y="7" width="4" height="13" rx="1"></rect>
-                  <rect x="17" y="3" width="4" height="17" rx="1"></rect>
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
                 </svg>
               </div>
               <div class="exec-insight-content">
-                <span class="exec-insight-category">RECEITA PONDERADA (SIMULAÇÃO)</span>
-                <div class="exec-insight-title">${BusinessRules.formatCurrency(insights.projectedRevenue)}</div>
-                <div class="exec-insight-stat">Probabilidade estimada por estágio comercial</div>
-                <div class="exec-insight-desc">Simulação estimada baseada em pesos hipotéticos de conversão por etapa do funil.</div>
+                <span class="exec-insight-category">FATURAMENTO EM PROPOSTAS FECHADAS</span>
+                <div class="exec-insight-title">${insights.closedProposals.formattedRevenue}</div>
+                <div class="exec-insight-stat">${insights.closedProposals.closedCount} de ${insights.closedProposals.totalUniverse} propostas (${insights.closedProposals.closureRate}%)</div>
+                <div class="exec-insight-desc">Faturamento somado exclusivamente de propostas com status Contrato Fechado no período.</div>
+                ${insights.closedProposals.closedCount > 0 ? `<div class="exec-insight-action">Ver contratos fechados (${insights.closedProposals.closedCount}) →</div>` : ''}
               </div>
             </div>
           </div>
@@ -1214,6 +1319,81 @@
       });
     });
 
+    // Eventos dos Controles de Insights Estratégicos
+    const periodSelect = container.querySelector('#insights-period-select');
+    const customDatesEl = container.querySelector('#insights-custom-dates');
+    const dateFieldSelect = container.querySelector('#insights-date-field');
+    const dateFromInput = container.querySelector('#insights-date-from');
+    const dateToInput = container.querySelector('#insights-date-to');
+    const btnRefreshInsights = container.querySelector('#btn-refresh-insights');
+
+    if (periodSelect) {
+      periodSelect.addEventListener('change', () => {
+        dashboardState.insightsPeriod = periodSelect.value;
+        if (customDatesEl) {
+          customDatesEl.style.display = periodSelect.value === 'custom' ? 'flex' : 'none';
+        }
+        if (periodSelect.value !== 'custom') {
+          renderDashboard(container);
+        }
+      });
+    }
+
+    if (dateFieldSelect) {
+      dateFieldSelect.addEventListener('change', () => {
+        dashboardState.insightsDateField = dateFieldSelect.value;
+        renderDashboard(container);
+      });
+    }
+
+    if (dateFromInput) {
+      dateFromInput.addEventListener('change', () => {
+        dashboardState.insightsDateFrom = dateFromInput.value;
+        renderDashboard(container);
+      });
+    }
+
+    if (dateToInput) {
+      dateToInput.addEventListener('change', () => {
+        dashboardState.insightsDateTo = dateToInput.value;
+        renderDashboard(container);
+      });
+    }
+
+    if (btnRefreshInsights) {
+      btnRefreshInsights.addEventListener('click', () => {
+        btnRefreshInsights.classList.add('spinning');
+        if (window.crmSupabase && window.crmSupabase.isConnected && typeof window.crmSupabase.fetchProposals === 'function') {
+          window.crmSupabase.fetchProposals().then(res => {
+            if (res && res.data && res.data.length > 0) {
+              appData.proposals = res.data;
+              saveDataStore();
+              dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
+              showToast('Dados reconciliados com o Supabase com sucesso!', 'success');
+              renderDashboard(container);
+            }
+          }).catch(err => {
+            showToast('Erro ao atualizar dados: ' + (err.message || err), 'error');
+          }).finally(() => {
+            btnRefreshInsights.classList.remove('spinning');
+          });
+        } else {
+          dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
+          showToast('Dados atualizados.', 'info');
+          renderDashboard(container);
+          btnRefreshInsights.classList.remove('spinning');
+        }
+      });
+    }
+
+    // Eventos de clique nos Cartões de Insights Estratégicos (Drilldown)
+    container.querySelectorAll('.exec-insight-card.interactive').forEach(card => {
+      card.addEventListener('click', () => {
+        const insightKey = card.dataset.insight;
+        openInsightsDrillDown(insightKey, proposals, insights);
+      });
+    });
+
     // Modal close listeners
     const modalCloseBtn = container.querySelector('#drilldown-modal-close');
     const modalOverlay = container.querySelector('#drilldown-modal-overlay');
@@ -1330,78 +1510,17 @@
     });
   }
 
-  // Cálculo de Insights Estratégicos Inteligentes
-  function calculateStrategicInsights(proposals) {
-    // 1. Top Corretor
-    const brokerCounts = {};
-    const brokerRevenues = {};
-    proposals.forEach(p => {
-      const b = p.CORRETORES_1 || 'Direto';
-      brokerCounts[b] = (brokerCounts[b] || 0) + 1;
-      brokerRevenues[b] = (brokerRevenues[b] || 0) + BusinessRules.parseCurrency(p.FATURAMENTO);
-    });
-    const sortedBrokers = Object.entries(brokerCounts).sort((a,b) => b[1] - a[1]);
-    const topBrokerName = sortedBrokers.length > 0 ? sortedBrokers[0][0] : 'Direto';
-    const topBrokerCount = sortedBrokers.length > 0 ? sortedBrokers[0][1] : 0;
-    const topBrokerRev = brokerRevenues[topBrokerName] || 0;
-
-    // 2. Maior Cotação
-    let biggest = { company: 'Nenhuma', lives: 0, revenue: 0 };
-    proposals.forEach(p => {
-      const rev = BusinessRules.parseCurrency(p.FATURAMENTO);
-      const lives = BusinessRules.parseLives(p.VIDAS);
-      if (rev > biggest.revenue) {
-        biggest = { company: p.EMPRESA || 'Sem Nome', lives, revenue: rev };
-      }
-    });
-
-    // 3. Região / UF Destaque
-    const ufCounts = {};
-    const ufLives = {};
-    proposals.forEach(p => {
-      const uf = p.UF || 'SP';
-      ufCounts[uf] = (ufCounts[uf] || 0) + 1;
-      ufLives[uf] = (ufLives[uf] || 0) + BusinessRules.parseLives(p.VIDAS);
-    });
-    const sortedUfs = Object.entries(ufCounts).sort((a,b) => b[1] - a[1]);
-    const topUfName = sortedUfs.length > 0 ? sortedUfs[0][0] : 'SP';
-    const topUfCount = sortedUfs.length > 0 ? sortedUfs[0][1] : 0;
-    const topUfLiveCount = ufLives[topUfName] || 0;
-
-    // 4. Receita Ponderada (Probabilidade por temperatura)
-    const weights = {
-      'Contrato Fechado': 1.0,
-      'Quente': 0.75,
-      'Morna': 0.50,
-      'Iniciada': 0.25,
-      'Fria': 0.15,
-      'Desistência da Empresa': 0,
-      'Declinado pela SB Saúde': 0
-    };
-    let projectedRevenue = 0;
-    proposals.forEach(p => {
-      const temp = p.TEMPERATURA_CONTRATO || 'Iniciada';
-      const w = weights[temp] !== undefined ? weights[temp] : 0.2;
-      projectedRevenue += (BusinessRules.parseCurrency(p.FATURAMENTO) * w);
-    });
-
+  // Cálculo de Insights Estratégicos Fatuais e Auditáveis
+  function calculateStrategicInsights(proposals, scope = {}) {
+    if (window.StrategicInsights && typeof window.StrategicInsights.calculateFactualStrategicInsights === 'function') {
+      return window.StrategicInsights.calculateFactualStrategicInsights(proposals, scope);
+    }
     return {
-      topBroker: {
-        name: topBrokerName,
-        count: topBrokerCount,
-        formattedRevenue: BusinessRules.formatCurrency(topBrokerRev)
-      },
-      biggestDeal: {
-        company: biggest.company,
-        lives: biggest.lives,
-        formattedRevenue: BusinessRules.formatCurrency(biggest.revenue)
-      },
-      topUf: {
-        uf: topUfName,
-        count: topUfCount,
-        lives: topUfLiveCount
-      },
-      projectedRevenue
+      scope: { period: 'all', periodLabel: 'Todo o histórico', totalUniverse: proposals.length, filteredUniverse: proposals.length },
+      topBroker: { name: 'Sem dados', count: 0, closedCount: 0, proposals: [] },
+      biggestProposal: { company: 'Sem dados', livesFormatted: '0 vidas', revenueFormatted: 'R$ 0,00', status: '-', id: null },
+      topUf: { label: 'Sem dados', count: 0, livesFormatted: '0 vidas', proposals: [] },
+      closedProposals: { formattedRevenue: 'R$ 0,00', closedCount: 0, totalUniverse: proposals.length, closureRate: '0.0', proposals: [] }
     };
   }
 
@@ -1783,6 +1902,140 @@
         </table>
       </div>
     `;
+
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  // Drilldown ao Clicar nos Cartões de Insights Estratégicos
+  function openInsightsDrillDown(insightKey, proposals, insights) {
+    if (insightKey === 'biggest-deal') {
+      if (insights && insights.biggestProposal && insights.biggestProposal.id) {
+        openProposalDrawer(insights.biggestProposal.id);
+      } else {
+        showToast('Nenhuma proposta encontrada no período.', 'info');
+      }
+      return;
+    }
+
+    const overlay = document.getElementById('drilldown-modal-overlay');
+    const titleEl = document.getElementById('drilldown-modal-title');
+    const descEl = document.getElementById('drilldown-modal-desc');
+    const bodyEl = document.getElementById('drilldown-modal-body');
+    if (!overlay || !bodyEl) return;
+
+    let title = '';
+    let desc = '';
+    let filteredList = [];
+
+    if (insightKey === 'top-broker') {
+      const brokerName = insights.topBroker?.name || '';
+      title = `Propostas com o Corretor: ${brokerName}`;
+      desc = `Listagem de todas as propostas com participação de ${brokerName} (1ª a 3ª posição) no período selecionado`;
+      filteredList = (insights.topBroker?.proposals && insights.topBroker.proposals.length > 0)
+        ? insights.topBroker.proposals
+        : proposals.filter(p => {
+            const b = [p.CORRETORES_1, p.CORRETORES_2, p.CORRETORES_3].filter(Boolean).map(s => s.trim());
+            return b.includes(brokerName);
+          });
+    } else if (insightKey === 'top-uf') {
+      const uf = insights.topUf?.uf || '';
+      title = `Propostas no ${insights.topUf?.label || 'Estado ' + uf}`;
+      desc = `Listagem de todas as cotações com abrangência em ${uf} no período selecionado`;
+      filteredList = (insights.topUf?.proposals && insights.topUf.proposals.length > 0)
+        ? insights.topUf.proposals
+        : proposals.filter(p => {
+            const ufs = (window.StrategicInsights && window.StrategicInsights.extractUfsFromProposal)
+              ? window.StrategicInsights.extractUfsFromProposal(p)
+              : [p.UF];
+            return ufs.includes(uf);
+          });
+    } else if (insightKey === 'closed-revenue') {
+      title = 'Contratos Fechados no Período';
+      desc = `Listagem das ${insights.closedProposals?.closedCount || 0} propostas fechadas totalizando ${insights.closedProposals?.formattedRevenue || 'R$ 0,00'}`;
+      filteredList = (insights.closedProposals?.proposals && insights.closedProposals.proposals.length > 0)
+        ? insights.closedProposals.proposals
+        : proposals.filter(p => (p.TEMPERATURA_CONTRATO || '').trim() === 'Contrato Fechado');
+    }
+
+    let sumLives = 0;
+    let sumRev = 0;
+    filteredList.forEach(p => {
+      sumLives += BusinessRules.parseLives(p.VIDAS);
+      sumRev += BusinessRules.parseCurrency(p.FATURAMENTO);
+    });
+
+    titleEl.textContent = title;
+    descEl.textContent = desc;
+
+    bodyEl.innerHTML = `
+      <div class="drilldown-kpis">
+        <div class="drilldown-kpi-card">
+          <span class="drilldown-kpi-val">${filteredList.length.toLocaleString('pt-BR')}</span>
+          <span class="drilldown-kpi-label">Propostas Listadas</span>
+        </div>
+        <div class="drilldown-kpi-card">
+          <span class="drilldown-kpi-val">${sumLives.toLocaleString('pt-BR')}</span>
+          <span class="drilldown-kpi-label">Total de Vidas</span>
+        </div>
+        <div class="drilldown-kpi-card">
+          <span class="drilldown-kpi-val" style="color:var(--success);">${BusinessRules.formatCurrency(sumRev)}</span>
+          <span class="drilldown-kpi-label">Faturamento Total</span>
+        </div>
+      </div>
+
+      <div class="table-container" style="max-height: 420px; overflow-y: auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Empresa</th>
+              <th>UF</th>
+              <th>Vidas</th>
+              <th>Faturamento</th>
+              <th>Competência</th>
+              <th>Temperatura</th>
+              <th>Corretores</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredList.map(p => {
+              const brokers = [p.CORRETORES_1, p.CORRETORES_2, p.CORRETORES_3].filter(Boolean).join(' / ') || 'Sem corretor';
+              return `
+                <tr style="cursor:pointer;" data-prp-id="${p.ID}">
+                  <td><span class="code-tag">#PRP-${p.ID}</span></td>
+                  <td><strong>${p.EMPRESA || 'Empresa Não Informada'}</strong></td>
+                  <td>${p.UF || '-'}</td>
+                  <td class="tnum">${p.VIDAS || '0'}</td>
+                  <td class="tnum font-bold">${p.FATURAMENTO || 'R$ 0,00'}</td>
+                  <td>${p.COMPETENCIA || '-'}</td>
+                  <td><span class="temp-badge ${getBadgeClass(p.TEMPERATURA_CONTRATO)}">${p.TEMPERATURA_CONTRATO || 'Iniciada'}</span></td>
+                  <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${brokers}">${brokers}</td>
+                  <td><button class="exec-action-link btn-drilldown-open" data-prp-id="${p.ID}">Abrir →</button></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${filteredList.length > 50 ? `<div style="text-align:center;font-size:0.75rem;color:var(--text-muted);margin-top:8px;">Exibindo todas as ${filteredList.length} propostas com rolagem vertical.</div>` : ''}
+    `;
+
+    bodyEl.querySelectorAll('tr[data-prp-id]').forEach(row => {
+      row.addEventListener('click', () => {
+        closeDrillDownModal();
+        openProposalDrawer(row.dataset.prpId);
+      });
+    });
+
+    bodyEl.querySelectorAll('.btn-drilldown-open').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeDrillDownModal();
+        openProposalDrawer(btn.dataset.prpId);
+      });
+    });
 
     overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
@@ -6234,10 +6487,9 @@
       role: 'Administrador Master',
       profile: 'Administrador Master',
       status: 'Ativo',
-      password: 'admin.admin',
       twoFactor: true,
       lastLogin: '21/09/2026 16:45',
-      ip: '192.168.10.1',
+      ip: null,
       avatar: 'AD',
       createdAt: '21/09/2026'
     }
@@ -6249,7 +6501,7 @@
       action: 'LOGIN_SUCCESS',
       user: 'ADMINISTRADOR',
       target: 'Sessão iniciada',
-      ip: '192.168.10.1',
+      ip: null,
       timestamp: '21/09/2026 16:45',
       status: 'success',
       details: 'Autenticação de Administrador Master realizada com sucesso'
@@ -6290,10 +6542,9 @@
                 role: u.role || (isAdm ? 'Administrador Master' : 'Consultor Comercial'),
                 profile: prof,
                 status: u.status || 'Ativo',
-                password: u.password || u.password_hash || (isAdm ? 'admin.admin' : 'SbSaude@2026'),
                 twoFactor: u.twoFactor ?? true,
                 lastLogin: u.lastLogin || 'Primeiro acesso pendente',
-                ip: u.ip || '192.168.10.1',
+                ip: u.ip || null,
                 avatar: u.avatar || (isAdm ? 'AD' : (u.name ? u.name.slice(0, 2).toUpperCase() : 'US'))
               };
             });
@@ -6309,15 +6560,6 @@
   function saveAdminUsers(users) {
     localStorage.setItem('crm_admin_users', JSON.stringify(users));
     syncUserSwitch(users);
-    if (window.crmSupabase && Array.isArray(users)) {
-      if (typeof window.crmSupabase.syncAllUsers === 'function') {
-        window.crmSupabase.syncAllUsers(users).catch(err => {
-          console.warn('[Supabase Sync] Falha ao sincronizar lote:', err);
-        });
-      } else {
-        users.forEach(u => window.crmSupabase.saveUser(u));
-      }
-    }
   }
 
   async function syncAdminUsersWithSupabase(showToastFeedback = true) {
@@ -6334,23 +6576,11 @@
     try {
       const isOnline = await window.crmSupabase.checkConnection();
       if (!isOnline) {
+        if (showToastFeedback) showToast('Servidor Supabase offline ou inacessível.', 'warning');
         return false;
       }
 
-      // 1. Enviar usuários locais para o Supabase
-      const localUsers = getAdminUsers();
-      let sentCount = 0;
-      if (typeof window.crmSupabase.syncAllUsers === 'function') {
-        const ok = await window.crmSupabase.syncAllUsers(localUsers);
-        if (ok) sentCount = localUsers.length;
-      } else {
-        for (const u of localUsers) {
-          const res = await window.crmSupabase.saveUser(u);
-          if (res && (res === true || res.success)) sentCount++;
-        }
-      }
-
-      // 2. Buscar usuários oficiais do Supabase
+      // Buscar usuários oficiais e atualizados do Supabase (Fonte Oficial da Verdade)
       const remoteUsers = await window.crmSupabase.fetchUsers();
       if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
         localStorage.setItem('crm_admin_users', JSON.stringify(remoteUsers));
@@ -6418,7 +6648,7 @@
       user: currentUser,
       action,
       actionLabel,
-      ip: '192.168.10.' + Math.floor(Math.random() * 80 + 10),
+      ip: null,
       severity: severity || 'info',
       details
     };
@@ -6790,7 +7020,9 @@
                         <td>
                           <div style="font-size:0.75rem; color:#64748b;">
                             <div>${u.lastLogin || 'Nunca'}</div>
-                            <div style="font-size:0.68rem; color:#94a3b8; font-family:monospace;">IP: ${u.ip || '192.168.10.x'}</div>
+                            <div style="font-size:0.68rem; color:${u.ip ? '#94a3b8' : '#64748b'}; font-family:monospace;">
+                              ${u.ip ? 'IP: ' + u.ip : '<span style="font-style:italic; color:#64748b;">IP não registrado</span>'}
+                            </div>
                           </div>
                         </td>
                         <td>
@@ -7293,7 +7525,7 @@
           password: pwd,
           twoFactor,
           lastLogin: 'Primeiro acesso pendente',
-          ip: '192.168.10.' + Math.floor(Math.random() * 80 + 10),
+          ip: null,
           avatar: initials,
           createdAt: new Date().toLocaleDateString('pt-BR')
         };
@@ -7457,19 +7689,20 @@
         btnSave.innerHTML = '⏳ Atualizando no banco...';
 
         try {
-          const oldPwd = user.password;
-          user.password = pwd;
-          if (window.crmSupabase) {
-            const res = await window.crmSupabase.saveUser(user);
-            if (res && res.success === false) {
-              user.password = oldPwd;
-              throw new Error(res.error || 'Erro ao persistir nova senha no Supabase.');
-            }
+          if (!window.crmSupabase || typeof window.crmSupabase.resetPassword !== 'function') {
+            throw new Error('Servidor Supabase indisponível para redefinição segura de senha.');
           }
-          saveAdminUsers(usersList);
-          addAuditLog('PASSWORD_CHANGE', `Senha alterada para o usuário ${user.login}`, 'warning', `Credencial atualizada via painel de administração corporativa`);
+          const res = await window.crmSupabase.resetPassword(user.login, pwd);
+          if (res && res.success === false) {
+            throw new Error(res.message || res.error || 'Erro ao redefinir senha no banco de dados.');
+          }
+
+          addAuditLog('PASSWORD_CHANGE', `Senha alterada para o usuário ${user.login}`, 'warning', `Credencial criptografada via RPC administrativa autorizada`);
           closeModal();
-          showToast(`Senha do usuário "${user.name}" atualizada com sucesso no banco!`, 'success');
+          const confirmMsg = res.updated_at
+            ? `Senha do usuário "${user.name}" redefinida e verificada no servidor!`
+            : `Senha do usuário "${user.name}" redefinida e criptografada com sucesso no banco!`;
+          showToast(confirmMsg, 'success');
         } catch (err) {
           console.error('[Admin] Erro ao alterar senha:', err);
           showToast(`Erro ao atualizar senha no banco: ${err.message || err}`, 'error');
@@ -8935,6 +9168,11 @@
         return;
       }
       state.currentTab = targetTab;
+      try {
+        if (typeof window !== 'undefined' && window.location.hash !== '#' + targetTab) {
+          window.location.hash = targetTab;
+        }
+      } catch (e) {}
       document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.tab === targetTab);
       });
@@ -8945,6 +9183,13 @@
         setTimeout(callback, 150);
       }
     };
+
+    window.addEventListener('hashchange', () => {
+      const hashTab = window.location.hash ? window.location.hash.replace('#', '') : '';
+      if (hashTab && hashTab !== state.currentTab && typeof window.navigateToTab === 'function') {
+        window.navigateToTab(hashTab);
+      }
+    });
 
     document.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', (e) => {
@@ -9245,10 +9490,10 @@
           }
 
           const identifier = (inpId ? inpId.value : '').trim();
-          const password = (inpPwd ? inpPwd.value : '').trim();
+          const password = inpPwd ? inpPwd.value : '';
           const remember = chkRemember ? chkRemember.checked : true;
 
-          if (!identifier || !password) {
+          if (!identifier || password.length === 0) {
             if (alertError && errorText) {
               errorText.textContent = 'Por favor, informe seu usuário ou e-mail e a senha de acesso.';
               alertError.style.display = 'flex';
@@ -9268,23 +9513,53 @@
           const attemptId = ++currentAuthAttemptId;
 
           try {
-            let allUsers = getAdminUsers();
+            let user = null;
+            let authenticatedViaRpc = false;
+            let rpcToken = null;
 
-            // 1. Consulta em tempo real ao Supabase com timeout de segurança
-            if (window.crmSupabase && typeof window.crmSupabase.fetchUsers === 'function') {
+            // 1. Autenticação Criptográfica Segura via PostgreSQL RPC (auth_login)
+            if (window.crmSupabase && typeof window.crmSupabase.login === 'function') {
               try {
-                const fetchPromise = window.crmSupabase.fetchUsers();
+                const loginPromise = window.crmSupabase.login(identifier, password);
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-                const remoteUsers = await Promise.race([fetchPromise, timeoutPromise]);
-                if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
-                  allUsers = remoteUsers;
-                  try {
-                    localStorage.setItem('crm_admin_users', JSON.stringify(remoteUsers));
-                  } catch (e) {}
-                  syncUserSwitch(remoteUsers);
+                const rpcRes = await Promise.race([loginPromise, timeoutPromise]);
+
+                if (rpcRes && rpcRes.success && rpcRes.user) {
+                  user = rpcRes.user;
+                  authenticatedViaRpc = true;
+                  rpcToken = rpcRes.session_token || null;
+                } else if (rpcRes && rpcRes.error_code && rpcRes.error_code !== 'CLIENT_OFFLINE' && rpcRes.error_code !== 'NETWORK_ERROR') {
+                  // O Supabase respondeu formalmente com rejeição de credenciais ou usuário bloqueado/inexistente
+                  if (attemptId !== currentAuthAttemptId || authState !== 'authenticating') {
+                    return;
+                  }
+
+                  if (btnSubmit) {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
+                  }
+
+                  // Proteção contra enumeração de usuários na interface pública
+                  let displayMessage = 'Credenciais incorretas. Verifique seu usuário ou e-mail e a senha de acesso, ou solicite a redefinição com o administrador.';
+                  if (rpcRes.error_code === 'USER_BLOCKED') {
+                    displayMessage = rpcRes.message || 'Acesso bloqueado. Este usuário está marcado como Inativo ou Bloqueado no painel administrativo.';
+                  } else if (rpcRes.error_code === 'INVALID_CREDENTIALS') {
+                    displayMessage = 'Por favor, informe seu usuário ou e-mail e a senha de acesso.';
+                  }
+
+                  if (alertError && errorText) {
+                    errorText.textContent = displayMessage;
+                    alertError.style.display = 'flex';
+                  }
+
+                  authState = 'unauthenticated';
+                  const logType = rpcRes.error_code === 'USER_BLOCKED' ? 'LOGIN_BLOCKED' : 'LOGIN_FAILED';
+                  // Auditoria interna preserva o código técnico original
+                  addAuditLog(logType, `Tentativa de autenticação rejeitada pelo servidor: ${identifier} (${rpcRes.error_code})`, 'danger', rpcRes.message || rpcRes.error_code);
+                  return;
                 }
-              } catch (err) {
-                console.warn('[Login] Consulta ao Supabase indisponível ou lenta, usando cache local:', err?.message || err);
+              } catch (rpcErr) {
+                console.warn('[Login] Falha ou timeout na autenticação RPC do Supabase, verificando fallback local:', rpcErr?.message || rpcErr);
               }
             }
 
@@ -9294,64 +9569,18 @@
               return;
             }
 
-            const idUpper = identifier.toUpperCase();
-            const idLower = identifier.toLowerCase();
-
-            // Busca flexível: por login, por username ou por e-mail corporativo
-            let user = allUsers.find(u => {
-              const uLogin = (u.login || u.username || '').trim().toUpperCase();
-              const uEmail = (u.email || '').trim().toLowerCase();
-              return (uLogin && uLogin === idUpper) || (uEmail && uEmail === idLower);
-            });
-
-            // Fallback de segurança para o usuário Administrador Master
-            if (!user && (idUpper === 'ADMINISTRADOR' || idLower === 'administrador@sbsaude.com.br')) {
-              user = DEFAULT_ADMIN_USERS[0];
-            }
-
-            if (!user) {
+            // 2. Sem autenticação pelo servidor: rejeitar acesso por política de segurança
+            if (!authenticatedViaRpc) {
               if (btnSubmit) {
                 btnSubmit.disabled = false;
                 btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
               }
               if (alertError && errorText) {
-                errorText.textContent = 'Usuário não encontrado. O acesso é restrito exclusivamente aos usuários cadastrados pelos administradores.';
+                errorText.textContent = 'Servidor de autenticação temporariamente indisponível. Verifique sua conexão com o servidor local.';
                 alertError.style.display = 'flex';
               }
               authState = 'unauthenticated';
-              addAuditLog('LOGIN_FAILED', `Tentativa com usuário inexistente: ${identifier}`, 'danger', 'Acesso não cadastrado recusado');
-              return;
-            }
-
-            // Verificação de Status da Conta
-            if (user.status && user.status !== 'Ativo') {
-              if (btnSubmit) {
-                btnSubmit.disabled = false;
-                btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
-              }
-              if (alertError && errorText) {
-                errorText.textContent = `Acesso bloqueado. O usuário "${user.name}" está marcado como Inativo ou Bloqueado no painel administrativo.`;
-                alertError.style.display = 'flex';
-              }
-              authState = 'unauthenticated';
-              addAuditLog('LOGIN_BLOCKED', `Tentativa de login de usuário bloqueado: ${user.login}`, 'danger', 'Acesso de conta inativa');
-              return;
-            }
-
-            // Verificação da Senha (compatível com password e password_hash)
-            const isMasterAdm = (user.login || '').toUpperCase() === 'ADMINISTRADOR';
-            const validPassword = user.password || user.password_hash || (isMasterAdm ? 'admin.admin' : 'SbSaude@2026');
-            if (password !== validPassword) {
-              if (btnSubmit) {
-                btnSubmit.disabled = false;
-                btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
-              }
-              if (alertError && errorText) {
-                errorText.textContent = 'Senha incorreta. Verifique suas credenciais ou solicite a redefinição com o administrador.';
-                alertError.style.display = 'flex';
-              }
-              authState = 'unauthenticated';
-              addAuditLog('LOGIN_FAILED', `Senha incorreta para usuário ${user.login}`, 'warning', 'Falha na validação de credencial');
+              addAuditLog('LOGIN_FAILED', `Tentativa de login sem conexão com servidor: ${identifier}`, 'warning', 'Acesso offline bloqueado');
               return;
             }
 
@@ -9364,10 +9593,15 @@
             const now = new Date();
             const timestamp = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR');
             user.lastLogin = timestamp;
-            saveAdminUsers(allUsers);
-            if (window.crmSupabase && typeof window.crmSupabase.saveUser === 'function') {
-              window.crmSupabase.saveUser(user).catch(console.warn);
+            const allUsers = getAdminUsers();
+            const existingIdx = allUsers.findIndex(u => (u.login || u.username) === user.login);
+            if (existingIdx >= 0) {
+              allUsers[existingIdx] = { ...allUsers[existingIdx], ...user, lastLogin: timestamp };
+            } else {
+              allUsers.push(user);
             }
+            saveAdminUsers(allUsers);
+            syncUserSwitch(allUsers);
 
             const sessionData = {
               userId: user.id || 'USR-001',
@@ -9377,7 +9611,8 @@
               role: user.role || 'Administrador Master',
               profile: user.profile || 'Administrador Master',
               avatar: user.avatar || 'AD',
-              loginAt: timestamp
+              loginAt: timestamp,
+              sessionToken: rpcToken || (window.crmSupabase && window.crmSupabase.getSessionToken()) || null
             };
 
             setAuthSession(sessionData, remember);
