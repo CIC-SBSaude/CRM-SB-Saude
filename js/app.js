@@ -383,25 +383,17 @@
         }
       }
 
-      const activeLogin = localStorage.getItem('crm_active_user');
-      if (activeLogin) {
-        const found = users.find(u => (u.login || u.username || '').toUpperCase() === activeLogin.toUpperCase());
-        if (found) return found;
-      }
-
-      // Se a sessão for de um usuário que não existe mais, conecta como Administrador ativo
-      const firstActive = users.find(u => u.status === 'Ativo');
-      if (firstActive) return firstActive;
-      return users[0] || DEFAULT_ADMIN_USERS[0];
+      // Sessão inexistente: retorna estritamente null sem fallback arbitrário para usuário padrão
+      return null;
     } catch (e) {
       console.warn('Erro ao obter usuário autenticado:', e);
     }
-    return DEFAULT_ADMIN_USERS[0];
+    return null;
   }
 
   function isMasterAdmin(user) {
     const u = user || getAuthenticatedUser();
-    if (!u) return true; // Fallback permissivo para o usuário único ativo
+    if (!u) return false;
     const login = (u.login || u.username || '').trim().toUpperCase();
     const prof = (u.profile || '').trim().toLowerCase();
     const role = (u.role || '').trim().toLowerCase();
@@ -8798,17 +8790,28 @@
   // ==========================================================================
   const THEME_STORAGE_KEY = 'crm_theme_preference';
 
+  function sanitizeThemeChoice(choice) {
+    if (choice === 'dark' || choice === 'light' || choice === 'auto') return choice;
+    return 'auto';
+  }
+
   function getSystemThemePreference() {
-    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    try {
+      return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    } catch (e) {
+      return 'light';
+    }
   }
 
   function getEffectiveTheme(choice) {
-    if (choice === 'dark') return 'dark';
-    if (choice === 'light') return 'light';
+    const valid = sanitizeThemeChoice(choice);
+    if (valid === 'dark') return 'dark';
+    if (valid === 'light') return 'light';
     return getSystemThemePreference();
   }
 
-  function applyTheme(choice, skipChartRefresh = false) {
+  function applyTheme(rawChoice, skipChartRefresh = false) {
+    const choice = sanitizeThemeChoice(rawChoice);
     const effectiveTheme = getEffectiveTheme(choice);
     document.documentElement.setAttribute('data-theme', effectiveTheme);
     document.documentElement.setAttribute('data-theme-choice', choice);
@@ -8836,7 +8839,12 @@
   }
 
   function initThemeManager() {
-    const savedChoice = localStorage.getItem(THEME_STORAGE_KEY) || 'auto';
+    let savedChoice = 'auto';
+    try {
+      savedChoice = sanitizeThemeChoice(localStorage.getItem(THEME_STORAGE_KEY));
+    } catch (e) {
+      savedChoice = 'auto';
+    }
     applyTheme(savedChoice, true);
 
     // Eventos nos botões de alternância
@@ -8860,7 +8868,12 @@
     if (window.matchMedia) {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       const handleSystemThemeChange = () => {
-        const currentChoice = localStorage.getItem(THEME_STORAGE_KEY) || 'auto';
+        let currentChoice = 'auto';
+        try {
+          currentChoice = sanitizeThemeChoice(localStorage.getItem(THEME_STORAGE_KEY));
+        } catch (e) {
+          currentChoice = 'auto';
+        }
         if (currentChoice === 'auto') {
           applyTheme('auto');
         }
@@ -8876,7 +8889,14 @@
     window.CRMThemeManager = {
       applyTheme,
       getEffectiveTheme,
-      getCurrentChoice: () => localStorage.getItem(THEME_STORAGE_KEY) || 'auto'
+      sanitizeThemeChoice,
+      getCurrentChoice: () => {
+        try {
+          return sanitizeThemeChoice(localStorage.getItem(THEME_STORAGE_KEY));
+        } catch (e) {
+          return 'auto';
+        }
+      }
     };
   }
 
@@ -8990,6 +9010,9 @@
     // =========================================================================
 
     const AUTH_STORAGE_KEY = 'crm_auth_session';
+    const LOGIN_BTN_DEFAULT_HTML = '<span>Entrar no Sistema</span>';
+    let authState = 'unauthenticated'; // 'unauthenticated' | 'authenticating' | 'authenticated'
+    let currentAuthAttemptId = 0;
 
     function getAuthSession() {
       try {
@@ -9002,18 +9025,103 @@
     }
 
     function setAuthSession(sessionData, rememberMe) {
-      const serialized = JSON.stringify(sessionData);
-      if (rememberMe) {
-        localStorage.setItem(AUTH_STORAGE_KEY, serialized);
-      } else {
-        sessionStorage.setItem(AUTH_STORAGE_KEY, serialized);
-        localStorage.removeItem(AUTH_STORAGE_KEY);
+      try {
+        const serialized = JSON.stringify(sessionData);
+        if (rememberMe) {
+          localStorage.setItem(AUTH_STORAGE_KEY, serialized);
+          sessionStorage.removeItem(AUTH_STORAGE_KEY);
+        } else {
+          sessionStorage.setItem(AUTH_STORAGE_KEY, serialized);
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        }
+      } catch (e) {
+        console.warn('Erro ao salvar sessão de autenticação:', e);
       }
     }
 
     function clearAuthSession() {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      sessionStorage.removeItem(AUTH_STORAGE_KEY);
+      try {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        sessionStorage.removeItem(AUTH_STORAGE_KEY);
+        localStorage.removeItem('crm_active_user');
+        sessionStorage.removeItem('crm_active_user');
+      } catch (e) {
+        console.warn('Erro ao limpar dados de sessão:', e);
+      }
+      currentAuthAttemptId++;
+      authState = 'unauthenticated';
+    }
+
+    function resetLoginForm(options = {}) {
+      const form = document.getElementById('form-login');
+      const inpId = document.getElementById('inp-login-identifier');
+      const inpPwd = document.getElementById('inp-login-password');
+      const btnTogglePwd = document.getElementById('btn-toggle-login-pwd');
+      const alertError = document.getElementById('login-alert-error');
+      const errorText = document.getElementById('login-error-text');
+      const btnSubmit = form ? form.querySelector('button[type="submit"]') : document.getElementById('btn-submit-login');
+
+      if (form && typeof form.reset === 'function') {
+        try { form.reset(); } catch (e) {}
+      }
+
+      if (inpId) {
+        inpId.value = '';
+      }
+
+      if (inpPwd) {
+        inpPwd.value = '';
+        inpPwd.type = 'password';
+      }
+
+      if (btnTogglePwd) {
+        btnTogglePwd.innerHTML = `
+          <svg id="pwd-icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>`;
+      }
+
+      if (alertError) {
+        alertError.style.display = 'none';
+      }
+      if (errorText) {
+        errorText.textContent = '';
+      }
+
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
+      }
+
+      currentAuthAttemptId++;
+      authState = 'unauthenticated';
+
+      if (options.focus && inpId && typeof inpId.focus === 'function') {
+        setTimeout(() => {
+          try { inpId.focus(); } catch (e) {}
+        }, 50);
+      }
+    }
+
+    function resetHeaderAuthUser() {
+      // Topo (Header)
+      const nameEl = document.getElementById('header-user-name');
+      const roleEl = document.getElementById('header-user-role');
+      const avatarEl = document.getElementById('header-user-avatar');
+      if (nameEl) nameEl.textContent = 'Não autenticado';
+      if (roleEl) roleEl.textContent = 'Sessão encerrada';
+      if (avatarEl) avatarEl.textContent = '--';
+
+      // Barra Lateral (Sidebar Footer)
+      const sidebarName = document.getElementById('sidebar-user-name') || document.querySelector('.sidebar-footer .user-name');
+      const sidebarRole = document.getElementById('sidebar-user-role') || document.querySelector('.sidebar-footer .user-role');
+      const sidebarAvatar = document.getElementById('sidebar-user-avatar') || document.querySelector('.sidebar-footer .user-avatar');
+      if (sidebarName) sidebarName.textContent = 'Não autenticado';
+      if (sidebarRole) sidebarRole.textContent = 'Sessão encerrada';
+      if (sidebarAvatar) sidebarAvatar.textContent = '--';
+
+      updateNavigationPermissions(null);
     }
 
     function updateHeaderAuthUser(user) {
@@ -9036,7 +9144,9 @@
       if (sidebarRole) sidebarRole.textContent = user.role;
       if (sidebarAvatar) sidebarAvatar.textContent = avatarText;
 
-      localStorage.setItem('crm_active_user', user.login);
+      try {
+        localStorage.setItem('crm_active_user', user.login);
+      } catch (e) {}
 
       // Sincroniza permissões de visibilidade da navegação (Auditoria & Requisitos)
       updateNavigationPermissions(user);
@@ -9047,7 +9157,7 @@
       }
     }
 
-    function handleLogout() {
+    async function handleLogout() {
       const session = getAuthSession();
       const userName = session ? (session.name || session.login) : 'Usuário';
 
@@ -9057,13 +9167,23 @@
 
       clearAuthSession();
 
+      if (window.crmSupabase && typeof window.crmSupabase.signOut === 'function') {
+        try {
+          await window.crmSupabase.signOut();
+        } catch (e) {
+          console.warn('[Logout] Aviso ao encerrar sessão Supabase:', e);
+        }
+      }
+
+      resetHeaderAuthUser();
+
       const appContainer = document.querySelector('.app-container');
       const loginScreen = document.getElementById('login-screen');
 
       if (appContainer) appContainer.style.display = 'none';
       if (loginScreen) loginScreen.style.display = 'flex';
 
-      renderLoginScreen();
+      resetLoginForm({ focus: true });
       showToast(`Sessão de ${userName} encerrada com segurança.`, 'info');
     }
 
@@ -9078,6 +9198,12 @@
       const alertError = document.getElementById('login-alert-error');
       const errorText = document.getElementById('login-error-text');
       const chkRemember = document.getElementById('chk-remember-me');
+
+      // Se não estiver em processo de autenticação ativo, garante formulário limpo e sem resíduos
+      if (authState !== 'authenticating') {
+        resetLoginForm({ focus: false });
+      }
+
       // Visualização de senha (mostrar/ocultar com SVG limpo)
       if (btnTogglePwd) {
         btnTogglePwd.onclick = () => {
@@ -9108,132 +9234,202 @@
         };
       }
 
-      // Processamento do Login com Consulta em Tempo Real ao Supabase
+      // Processamento do Login com Proteção Assíncrona e Token de Tentativa
       if (form) {
         form.onsubmit = async (e) => {
           e.preventDefault();
-          const identifier = (inpId.value || '').trim();
-          const password = (inpPwd.value || '').trim();
+
+          // Rejeita envios simultâneos se já estiver autenticando
+          if (authState === 'authenticating') {
+            return;
+          }
+
+          const identifier = (inpId ? inpId.value : '').trim();
+          const password = (inpPwd ? inpPwd.value : '').trim();
           const remember = chkRemember ? chkRemember.checked : true;
+
+          if (!identifier || !password) {
+            if (alertError && errorText) {
+              errorText.textContent = 'Por favor, informe seu usuário ou e-mail e a senha de acesso.';
+              alertError.style.display = 'flex';
+            }
+            return;
+          }
 
           if (alertError) alertError.style.display = 'none';
 
-          const btnSubmit = form.querySelector('button[type="submit"]');
-          const originalBtnText = btnSubmit ? btnSubmit.innerHTML : '<span>Entrar no Sistema</span>';
+          const btnSubmit = form.querySelector('button[type="submit"]') || document.getElementById('btn-submit-login');
           if (btnSubmit) {
             btnSubmit.disabled = true;
             btnSubmit.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite;">⏳</span> Autenticando...';
           }
 
-          let allUsers = getAdminUsers();
+          authState = 'authenticating';
+          const attemptId = ++currentAuthAttemptId;
 
-          // 1. Consulta em tempo real ao Supabase para garantir credenciais atualizadas
-          if (window.crmSupabase && typeof window.crmSupabase.fetchUsers === 'function') {
-            try {
-              const remoteUsers = await window.crmSupabase.fetchUsers();
-              if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
-                allUsers = remoteUsers;
-                localStorage.setItem('crm_admin_users', JSON.stringify(remoteUsers));
-                syncUserSwitch(remoteUsers);
+          try {
+            let allUsers = getAdminUsers();
+
+            // 1. Consulta em tempo real ao Supabase com timeout de segurança
+            if (window.crmSupabase && typeof window.crmSupabase.fetchUsers === 'function') {
+              try {
+                const fetchPromise = window.crmSupabase.fetchUsers();
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+                const remoteUsers = await Promise.race([fetchPromise, timeoutPromise]);
+                if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
+                  allUsers = remoteUsers;
+                  try {
+                    localStorage.setItem('crm_admin_users', JSON.stringify(remoteUsers));
+                  } catch (e) {}
+                  syncUserSwitch(remoteUsers);
+                }
+              } catch (err) {
+                console.warn('[Login] Consulta ao Supabase indisponível ou lenta, usando cache local:', err?.message || err);
               }
-            } catch (err) {
-              console.warn('[Login] Consulta ao Supabase falhou, usando cache local:', err);
             }
-          }
 
-          const idUpper = identifier.toUpperCase();
-          const idLower = identifier.toLowerCase();
+            // Verifica se este attempt ainda é o ativo (ex: logoff executado ou cancelamento durante a espera)
+            if (attemptId !== currentAuthAttemptId || authState !== 'authenticating') {
+              console.log('[Login] Tentativa de autenticação descartada (id de tentativa superado).');
+              return;
+            }
 
-          // Busca flexível: por login, por username ou por e-mail corporativo
-          let user = allUsers.find(u => {
-            const uLogin = (u.login || u.username || '').trim().toUpperCase();
-            const uEmail = (u.email || '').trim().toLowerCase();
-            return (uLogin && uLogin === idUpper) || (uEmail && uEmail === idLower);
-          });
+            const idUpper = identifier.toUpperCase();
+            const idLower = identifier.toLowerCase();
 
-          // Fallback de segurança para o usuário Administrador Master
-          if (!user && (idUpper === 'ADMINISTRADOR' || idLower === 'administrador@sbsaude.com.br')) {
-            user = DEFAULT_ADMIN_USERS[0];
-          }
+            // Busca flexível: por login, por username ou por e-mail corporativo
+            let user = allUsers.find(u => {
+              const uLogin = (u.login || u.username || '').trim().toUpperCase();
+              const uEmail = (u.email || '').trim().toLowerCase();
+              return (uLogin && uLogin === idUpper) || (uEmail && uEmail === idLower);
+            });
 
-          if (!user) {
+            // Fallback de segurança para o usuário Administrador Master
+            if (!user && (idUpper === 'ADMINISTRADOR' || idLower === 'administrador@sbsaude.com.br')) {
+              user = DEFAULT_ADMIN_USERS[0];
+            }
+
+            if (!user) {
+              if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
+              }
+              if (alertError && errorText) {
+                errorText.textContent = 'Usuário não encontrado. O acesso é restrito exclusivamente aos usuários cadastrados pelos administradores.';
+                alertError.style.display = 'flex';
+              }
+              authState = 'unauthenticated';
+              addAuditLog('LOGIN_FAILED', `Tentativa com usuário inexistente: ${identifier}`, 'danger', 'Acesso não cadastrado recusado');
+              return;
+            }
+
+            // Verificação de Status da Conta
+            if (user.status && user.status !== 'Ativo') {
+              if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
+              }
+              if (alertError && errorText) {
+                errorText.textContent = `Acesso bloqueado. O usuário "${user.name}" está marcado como Inativo ou Bloqueado no painel administrativo.`;
+                alertError.style.display = 'flex';
+              }
+              authState = 'unauthenticated';
+              addAuditLog('LOGIN_BLOCKED', `Tentativa de login de usuário bloqueado: ${user.login}`, 'danger', 'Acesso de conta inativa');
+              return;
+            }
+
+            // Verificação da Senha (compatível com password e password_hash)
+            const isMasterAdm = (user.login || '').toUpperCase() === 'ADMINISTRADOR';
+            const validPassword = user.password || user.password_hash || (isMasterAdm ? 'admin.admin' : 'SbSaude@2026');
+            if (password !== validPassword) {
+              if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
+              }
+              if (alertError && errorText) {
+                errorText.textContent = 'Senha incorreta. Verifique suas credenciais ou solicite a redefinição com o administrador.';
+                alertError.style.display = 'flex';
+              }
+              authState = 'unauthenticated';
+              addAuditLog('LOGIN_FAILED', `Senha incorreta para usuário ${user.login}`, 'warning', 'Falha na validação de credencial');
+              return;
+            }
+
+            // Novamente verifica tentativa antes de gravar estado
+            if (attemptId !== currentAuthAttemptId || authState !== 'authenticating') {
+              return;
+            }
+
+            // Autenticação bem-sucedida!
+            const now = new Date();
+            const timestamp = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR');
+            user.lastLogin = timestamp;
+            saveAdminUsers(allUsers);
+            if (window.crmSupabase && typeof window.crmSupabase.saveUser === 'function') {
+              window.crmSupabase.saveUser(user).catch(console.warn);
+            }
+
+            const sessionData = {
+              userId: user.id || 'USR-001',
+              login: user.login || 'ADMINISTRADOR',
+              name: user.name || 'Administrador',
+              email: user.email || 'administrador@sbsaude.com.br',
+              role: user.role || 'Administrador Master',
+              profile: user.profile || 'Administrador Master',
+              avatar: user.avatar || 'AD',
+              loginAt: timestamp
+            };
+
+            setAuthSession(sessionData, remember);
+            addAuditLog('LOGIN_SUCCESS', `Autenticação bem-sucedida de ${user.name}`, 'success', `Sessão iniciada via formulário seguro (Perfil: ${user.profile})`, user.login);
+
+            // Descarta a senha do DOM imediatamente
+            if (inpPwd) {
+              inpPwd.value = '';
+            }
+
+            // Restaura o botão para o estado padrão estável
             if (btnSubmit) {
               btnSubmit.disabled = false;
-              btnSubmit.innerHTML = originalBtnText;
+              btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
             }
-            if (alertError && errorText) {
-              errorText.textContent = 'Usuário não encontrado. O acesso é restrito exclusivamente aos usuários cadastrados pelos administradores.';
-              alertError.style.display = 'flex';
+
+            authState = 'authenticated';
+
+            // Alterna telas
+            loginScreen.style.display = 'none';
+            const appContainer = document.querySelector('.app-container');
+            if (appContainer) appContainer.style.display = 'flex';
+
+            updateHeaderAuthUser(user);
+            showToast(`Bem-vindo(a) ao CRM SB Saúde, ${user.name}!`, 'success');
+
+            if (!state.currentTab) {
+              state.currentTab = 'dashboard';
             }
-            addAuditLog('LOGIN_FAILED', `Tentativa com usuário inexistente: ${identifier}`, 'danger', 'Acesso não cadastrado recusado');
-            return;
+            renderView();
+          } catch (err) {
+            console.error('[Login] Erro inesperado no fluxo de login:', err);
+            if (attemptId === currentAuthAttemptId) {
+              if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
+              }
+              if (alertError && errorText) {
+                errorText.textContent = 'Ocorreu um erro ao processar a autenticação. Tente novamente.';
+                alertError.style.display = 'flex';
+              }
+              authState = 'unauthenticated';
+            }
+          } finally {
+            if (attemptId === currentAuthAttemptId && authState === 'authenticating') {
+              if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = LOGIN_BTN_DEFAULT_HTML;
+              }
+              authState = 'unauthenticated';
+            }
           }
-
-          // Verificação de Status da Conta
-          if (user.status && user.status !== 'Ativo') {
-            if (btnSubmit) {
-              btnSubmit.disabled = false;
-              btnSubmit.innerHTML = originalBtnText;
-            }
-            if (alertError && errorText) {
-              errorText.textContent = `Acesso bloqueado. O usuário "${user.name}" está marcado como Inativo ou Bloqueado no painel administrativo.`;
-              alertError.style.display = 'flex';
-            }
-            addAuditLog('LOGIN_BLOCKED', `Tentativa de login de usuário bloqueado: ${user.login}`, 'danger', 'Acesso de conta inativa');
-            return;
-          }
-
-          // Verificação da Senha (compatível com password e password_hash)
-          const isMasterAdm = (user.login || '').toUpperCase() === 'ADMINISTRADOR';
-          const validPassword = user.password || user.password_hash || (isMasterAdm ? 'admin.admin' : 'SbSaude@2026');
-          if (password !== validPassword) {
-            if (btnSubmit) {
-              btnSubmit.disabled = false;
-              btnSubmit.innerHTML = originalBtnText;
-            }
-            if (alertError && errorText) {
-              errorText.textContent = 'Senha incorreta. Verifique suas credenciais ou solicite a redefinição com o administrador.';
-              alertError.style.display = 'flex';
-            }
-            addAuditLog('LOGIN_FAILED', `Senha incorreta para usuário ${user.login}`, 'warning', 'Falha na validação de credencial');
-            return;
-          }
-
-          // Autenticação bem-sucedida!
-          const now = new Date();
-          const timestamp = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR');
-          user.lastLogin = timestamp;
-          saveAdminUsers(allUsers);
-          if (window.crmSupabase && typeof window.crmSupabase.saveUser === 'function') {
-            window.crmSupabase.saveUser(user).catch(console.warn);
-          }
-
-          const sessionData = {
-            userId: user.id || 'USR-001',
-            login: user.login || 'ADMINISTRADOR',
-            name: user.name || 'Administrador',
-            email: user.email || 'administrador@sbsaude.com.br',
-            role: user.role || 'Administrador Master',
-            profile: user.profile || 'Administrador Master',
-            avatar: user.avatar || 'AD',
-            loginAt: timestamp
-          };
-
-          setAuthSession(sessionData, remember);
-          addAuditLog('LOGIN_SUCCESS', `Autenticação bem-sucedida de ${user.name}`, 'success', `Sessão iniciada via formulário seguro (Perfil: ${user.profile})`, user.login);
-
-          // Alterna telas
-          loginScreen.style.display = 'none';
-          const appContainer = document.querySelector('.app-container');
-          if (appContainer) appContainer.style.display = 'flex';
-
-          updateHeaderAuthUser(user);
-          showToast(`Bem-vindo(a) ao CRM SB Saúde, ${user.name}!`, 'success');
-
-          if (!state.currentTab) {
-            state.currentTab = 'dashboard';
-          }
-          renderView();
         };
       }
     }
@@ -9251,6 +9447,7 @@
         );
 
         if (user && user.status === 'Ativo') {
+          authState = 'authenticated';
           if (appContainer) appContainer.style.display = 'flex';
           if (loginScreen) loginScreen.style.display = 'none';
           updateHeaderAuthUser(user);
@@ -9260,12 +9457,24 @@
         }
       }
 
-      // Sessão inexistente ou expirada: restringe acesso ao CRM e abre login
+      // Sessão inexistente ou expirada: restringe acesso ao CRM e abre login limpo
+      clearAuthSession();
+      resetHeaderAuthUser();
       if (appContainer) appContainer.style.display = 'none';
       if (loginScreen) loginScreen.style.display = 'flex';
+      resetLoginForm({ focus: true });
       renderLoginScreen();
       return false;
     }
+
+    window.CRMAuthManager = {
+      resetLoginForm,
+      clearAuthSession,
+      getAuthSession,
+      getAuthState: () => authState,
+      getCurrentAttemptId: () => currentAuthAttemptId,
+      handleLogout
+    };
 
     // Botão de Logout no Topo
     const btnLogout = document.getElementById('btn-logout');

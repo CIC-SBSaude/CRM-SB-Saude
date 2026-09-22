@@ -17,14 +17,21 @@
   <script>
     (function() {
       try {
-        var preference = localStorage.getItem('crm_theme_preference') || 'auto';
+        var preference = localStorage.getItem('crm_theme_preference');
+        if (preference !== 'light' && preference !== 'dark' && preference !== 'auto') {
+          preference = 'auto';
+        }
         var theme = preference;
         if (preference === 'auto') {
           theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
         }
         document.documentElement.setAttribute('data-theme', theme);
         document.documentElement.setAttribute('data-theme-choice', preference);
-      } catch (e) {}
+      } catch (e) {
+        var fallback = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', fallback);
+        document.documentElement.setAttribute('data-theme-choice', 'auto');
+      }
     })();
   </script>
 </head>

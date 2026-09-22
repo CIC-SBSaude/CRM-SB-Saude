@@ -19,6 +19,12 @@
   --bg-container-high: #dce9ff;
   --bg-container-highest: #d3e4fe;
 
+  /* Fundo e Gradiente da Tela de Login */
+  --bg-login-screen: #fbfcfe;
+  --bg-login-gradient: 
+    radial-gradient(circle at 92% 8%, rgba(229, 0, 20, 0.04) 0%, transparent 45%),
+    radial-gradient(circle at 6% 92%, rgba(229, 0, 20, 0.035) 0%, transparent 45%);
+
   /* Vermelho Ruby / Crimson Institucional (DESIGN.md) */
   --primary: #95002a;
   --primary-hover: #7b0022;
@@ -125,6 +131,12 @@
   --bg-table-hover: #16233d;
   --border-input: #293952;
   --border-table: #1a263d;
+
+  /* Fundo e Gradiente da Tela de Login em Modo Escuro */
+  --bg-login-screen: #070b14;
+  --bg-login-gradient: 
+    radial-gradient(at 20% 20%, rgba(190, 18, 60, 0.12) 0px, transparent 50%),
+    radial-gradient(at 80% 80%, rgba(14, 26, 48, 0.5) 0px, transparent 60%);
 
   /* Vermelho Ruby / Crimson Institucional Adaptado para Dark */
   --primary: #f43f5e;
@@ -5963,10 +5975,10 @@ body {
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background-color: #fbfcfe;
-  background-image: 
-    radial-gradient(circle at 92% 8%, rgba(229, 0, 20, 0.04) 0%, transparent 45%),
-    radial-gradient(circle at 6% 92%, rgba(229, 0, 20, 0.035) 0%, transparent 45%);
+  background-color: var(--bg-login-screen, #fbfcfe);
+  background-image: var(--bg-login-gradient);
+  background-attachment: fixed;
+  background-size: cover;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -5987,6 +5999,8 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  background-color: transparent !important;
+  background-image: none !important;
 }
 
 .login-main-container {
@@ -7587,8 +7601,9 @@ body {
    ESTILOS GLOBAIS EM MODO ESCURO (DATA-THEME="DARK")
    ========================================================================== */
 
+html[data-theme="dark"],
 [data-theme="dark"] body {
-  background-color: var(--bg-canvas);
+  background-color: var(--bg-canvas, #070b14);
   background-image: 
     radial-gradient(at 100% 0%, rgba(244, 63, 94, 0.05) 0px, transparent 50%),
     radial-gradient(at 0% 100%, rgba(17, 26, 46, 0.5) 0px, transparent 60%);
@@ -7719,11 +7734,17 @@ body {
 }
 
 /* 2. Tela de Login em Tema Escuro */
-[data-theme="dark"] .login-page-wrapper {
-  background-color: #070b14;
+[data-theme="dark"] .login-overlay-screen {
+  background-color: #070b14 !important;
   background-image: 
     radial-gradient(at 20% 20%, rgba(190, 18, 60, 0.12) 0px, transparent 50%),
-    radial-gradient(at 80% 80%, rgba(14, 26, 48, 0.5) 0px, transparent 60%);
+    radial-gradient(at 80% 80%, rgba(14, 26, 48, 0.5) 0px, transparent 60%) !important;
+  background-attachment: fixed !important;
+}
+
+[data-theme="dark"] .login-page-wrapper {
+  background-color: transparent !important;
+  background-image: none !important;
 }
 
 [data-theme="dark"] .login-auth-card {

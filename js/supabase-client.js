@@ -116,6 +116,18 @@
       }
     }
 
+    async signOut() {
+      if (this.client && this.client.auth && typeof this.client.auth.signOut === 'function') {
+        try {
+          await this.client.auth.signOut();
+          console.log('[Supabase] Sessão remota encerrada via API de autenticação.');
+        } catch (e) {
+          console.warn('[Supabase] Aviso ao encerrar sessão remota:', e?.message || e);
+        }
+      }
+      return true;
+    }
+
     async syncAllUsers(users) {
       if (!this.client) return { success: false, synced: 0, error: 'Cliente Supabase não inicializado' };
       if (!this.isConnected) {

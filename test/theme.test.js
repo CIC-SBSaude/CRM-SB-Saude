@@ -95,7 +95,25 @@ assert(
   'css/styles.css deve conter estilos para .theme-switch-btn'
 );
 
-console.log('✓ css/styles.css contém o bloco [data-theme="dark"] e todas as variáveis semânticas requeridas.');
+// Validação específica da tela de Login no Dark Mode
+assert(
+  cssContent.includes('--bg-login-screen'),
+  'css/styles.css deve definir a variável semântica --bg-login-screen'
+);
+assert(
+  cssContent.includes('[data-theme="dark"] .login-overlay-screen'),
+  'css/styles.css deve aplicar fundo escuro diretamente a .login-overlay-screen'
+);
+assert(
+  cssContent.includes('[data-theme="dark"] .login-page-wrapper'),
+  'css/styles.css deve conter regra para .login-page-wrapper em modo escuro'
+);
+assert(
+  /\[data-theme=["']dark["']\]\s*\.login-page-wrapper\s*\{[^}]*background-color:\s*transparent/i.test(cssContent),
+  '.login-page-wrapper deve ser transparente em modo escuro para não criar retângulo isolado com bordas brancas'
+);
+
+console.log('✓ css/styles.css contém o bloco [data-theme="dark"], variáveis semânticas e regras da tela de login.');
 
 // 3. Simular lógica de resolução de tema do CRMThemeManager
 function resolveEffectiveTheme(preference, systemIsDark) {
