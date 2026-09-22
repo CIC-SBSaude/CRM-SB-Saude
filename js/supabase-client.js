@@ -6,14 +6,32 @@
 (function () {
   'use strict';
 
-  // Configuração padrão do Supabase Local (Docker)
-  const DEFAULT_SUPABASE_URL = 'http://127.0.0.1:56321';
+  // Resolução dinâmica da URL do Supabase para suportar tanto localhost quanto IP de rede (ex: 192.168.91.103)
+  function getDefaultSupabaseUrl() {
+    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+      const h = window.location.hostname;
+      if (h && h !== 'localhost' && h !== '127.0.0.1') {
+        return `http://${h}:56321`;
+      }
+    }
+    return 'http://127.0.0.1:56321';
+  }
+
+  const DEFAULT_SUPABASE_URL = getDefaultSupabaseUrl();
   const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 
   class SBClient {
     constructor() {
-      this.url = localStorage.getItem('CRM_SUPABASE_URL') || DEFAULT_SUPABASE_URL;
-      this.anonKey = localStorage.getItem('CRM_SUPABASE_ANON_KEY') || DEFAULT_ANON_KEY;
+      const storedUrl = typeof localStorage !== 'undefined' ? localStorage.getItem('CRM_SUPABASE_URL') : null;
+      const defaultUrl = getDefaultSupabaseUrl();
+      // Se a URL salva for 127.0.0.1 mas a página está aberta via IP da rede, atualiza dinamicamente
+      if (storedUrl && (storedUrl.includes('127.0.0.1') || storedUrl.includes('localhost')) && defaultUrl !== 'http://127.0.0.1:56321') {
+        this.url = defaultUrl;
+        try { localStorage.setItem('CRM_SUPABASE_URL', defaultUrl); } catch (e) {}
+      } else {
+        this.url = storedUrl || defaultUrl;
+      }
+      this.anonKey = (typeof localStorage !== 'undefined' ? localStorage.getItem('CRM_SUPABASE_ANON_KEY') : null) || DEFAULT_ANON_KEY;
       this.client = null;
       this.isConnected = false;
       this.realtimeChannel = null;
@@ -76,47 +94,9 @@
     }
 
     updateConnectionIndicator(connected) {
-      let badge = document.getElementById('supabase-status-badge');
-      if (!badge) {
-        badge = document.createElement('div');
-        badge.id = 'supabase-status-badge';
-        badge.style.position = 'fixed';
-        badge.style.bottom = '12px';
-        badge.style.left = '270px';
-        badge.style.zIndex = '9999';
-        badge.style.fontSize = '11px';
-        badge.style.fontWeight = '600';
-        badge.style.padding = '5px 12px';
-        badge.style.borderRadius = '16px';
-        badge.style.display = 'flex';
-        badge.style.alignItems = 'center';
-        badge.style.gap = '6px';
-        badge.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-        badge.style.fontFamily = 'system-ui, -apple-system, sans-serif';
-        badge.style.cursor = 'pointer';
-        badge.style.transition = 'all 0.2s ease';
-        badge.title = 'Status do Banco de Dados Supabase (127.0.0.1:56321). Clique para forçar verificação.';
-        badge.onclick = () => {
-          badge.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite;">⏳</span> Testando conexão...';
-          this.checkConnection().then(ok => {
-            if (typeof window.syncAdminUsersWithSupabase === 'function') {
-              window.syncAdminUsersWithSupabase(true);
-            }
-          });
-        };
-        document.body.appendChild(badge);
-      }
-
-      if (connected) {
-        badge.style.background = '#064e3b';
-        badge.style.color = '#34d399';
-        badge.style.border = '1px solid #059669';
-        badge.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span> Supabase Conectado (CLI 56321)';
-      } else {
-        badge.style.background = '#450a0a';
-        badge.style.color = '#f87171';
-        badge.style.border = '1px solid #dc2626';
-        badge.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block;"></span> Supabase Offline (Modo Local)';
+      const badge = document.getElementById('supabase-status-badge');
+      if (badge) {
+        badge.remove();
       }
     }
 
@@ -129,8 +109,8 @@
       try {
         let count = 0;
         for (const u of users) {
-          const ok = await this.saveUser(u);
-          if (ok) count++;
+          const res = await this.saveUser(u);
+          if (res && (res === true || res.success)) count++;
         }
         return { success: true, synced: count };
       } catch (err) {
@@ -274,6 +254,10 @@
         }));
       } catch (err) {
         console.warn('[Supabase] Erro ao carregar copart policies:', err);
+        return null;
+      }
+    }
+
     async fetchUsers() {
       if (!this.client) return null;
       try {
@@ -289,9 +273,9 @@
           name: u.name || u.username,
           email: u.email || `${u.username.toLowerCase()}@sbsaude.com.br`,
           role: u.role || 'Consultor Comercial',
-          profile: u.profile || 'Consultor Comercial',
+          profile: u.profile || (u.username === 'ADMINISTRADOR' ? 'Administrador Master' : (u.role || 'Consultor Comercial')),
           status: u.status || 'Ativo',
-          password: u.password_hash || 'SbSaude@2026',
+          password: u.password_hash || (u.username === 'ADMINISTRADOR' ? 'admin.admin' : 'SbSaude@2026'),
           twoFactor: u.two_factor ?? true,
           lastLogin: u.last_login || 'Primeiro acesso pendente',
           ip: u.ip || '192.168.10.1',
@@ -460,10 +444,14 @@
     }
 
     async saveUser(u) {
-      if (!this.client) return false;
+      if (!this.client) {
+        return { success: false, error: 'Cliente Supabase não inicializado ou offline.' };
+      }
       try {
         const username = (u.login || u.username || '').trim();
-        if (!username) return false;
+        if (!username) {
+          return { success: false, error: 'Login / Usuário obrigatório.' };
+        }
 
         const record = {
           user_code: u.id || null,
@@ -481,15 +469,53 @@
           updated_at: new Date().toISOString()
         };
 
-        const { error } = await this.client
+        const { data, error } = await this.client
           .from('users')
-          .upsert(record, { onConflict: 'username' });
+          .upsert(record, { onConflict: 'username' })
+          .select();
 
         if (error) throw error;
         console.log(`[Supabase] Usuário ${record.username} gravado com sucesso no banco.`);
-        return true;
+        return { success: true, data };
       } catch (err) {
         console.error('[Supabase] Erro ao salvar usuário no banco:', err);
+        return { success: false, error: err.message || String(err) };
+      }
+    }
+
+    async syncAllUsers(users) {
+      if (!this.client || !Array.isArray(users)) return false;
+      try {
+        const records = users.map(u => {
+          const username = (u.login || u.username || '').trim().toUpperCase();
+          return {
+            user_code: u.id || null,
+            username,
+            name: u.name || username,
+            email: u.email || `${username.toLowerCase()}@sbsaude.com.br`,
+            role: u.role || 'Consultor Comercial',
+            profile: u.profile || (username === 'ADMINISTRADOR' ? 'Administrador Master' : (u.role || 'Consultor Comercial')),
+            status: u.status || 'Ativo',
+            password_hash: u.password || (username === 'ADMINISTRADOR' ? 'admin.admin' : 'SbSaude@2026'),
+            two_factor: u.twoFactor !== false,
+            last_login: u.lastLogin || null,
+            ip: u.ip || null,
+            avatar: u.avatar || null,
+            updated_at: new Date().toISOString()
+          };
+        }).filter(r => Boolean(r.username));
+
+        if (records.length === 0) return true;
+
+        const { error } = await this.client
+          .from('users')
+          .upsert(records, { onConflict: 'username' });
+
+        if (error) throw error;
+        console.log(`[Supabase] ${records.length} usuário(s) sincronizados em lote com sucesso.`);
+        return true;
+      } catch (err) {
+        console.error('[Supabase] Erro ao sincronizar lote de usuários:', err);
         return false;
       }
     }

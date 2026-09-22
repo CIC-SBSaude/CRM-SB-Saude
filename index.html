@@ -142,23 +142,24 @@
         </a>
 
         <div class="nav-section-title" id="nav-section-admin">Governança &amp; Sistema</div>
-        <a class="nav-item" data-tab="admin" id="nav-item-admin" title="Administrador &amp; Segurança">
+        <a class="nav-item" data-tab="admin" id="nav-item-admin" title="Gestão de Usuários, Administrador Master &amp; Permissões">
           <span class="nav-icon">
             <svg class="sidebar-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2a5 5 0 0 1 5 5v3a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"></path>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
           </span>
-          <span class="nav-label">Administrador</span>
+          <span class="nav-label">Gestão de Usuários</span>
         </a>
       </nav>
 
-      <div class="sidebar-footer">
-        <div class="user-avatar" id="sidebar-user-avatar">LU</div>
+      <div class="sidebar-footer" id="sidebar-user-footer" style="cursor: pointer;" title="Abrir Gestão de Usuários &amp; Perfil">
+        <div class="user-avatar" id="sidebar-user-avatar">AD</div>
         <div class="user-info">
-          <div class="user-name" id="sidebar-user-name">Lucas</div>
-          <div class="user-role" id="sidebar-user-role">Supervisor Comercial</div>
+          <div class="user-name" id="sidebar-user-name">Administrador</div>
+          <div class="user-role" id="sidebar-user-role">Administrador Master</div>
         </div>
       </div>
     </aside>
@@ -211,23 +212,19 @@
             </button>
           </div>
 
-          <!-- Chip de Identificação do Usuário Ativo -->
-          <div class="user-profile-chip" id="header-user-chip" title="Usuário autenticado no sistema">
-            <div class="user-chip-avatar" id="header-user-avatar">RR</div>
+
+          <!-- Chip de Identificação do Usuário Ativo (Clicável) -->
+          <div class="user-profile-chip" id="header-user-chip" title="Clique para abrir Gestão de Usuários e Perfil" style="cursor: pointer;">
+            <div class="user-chip-avatar" id="header-user-avatar">AD</div>
             <div class="user-chip-info">
-              <strong class="user-chip-name" id="header-user-name">Ramon Reis</strong>
-              <span class="user-chip-role" id="header-user-role">Analista de Sistemas • Nível 4</span>
+              <strong class="user-chip-name" id="header-user-name">Administrador</strong>
+              <span class="user-chip-role" id="header-user-role">Administrador Master</span>
             </div>
           </div>
 
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <select class="user-switch-select" id="user-switch" style="display:none;">
-              <option value="RAMON" selected>Ramon Reis (Master)</option>
-              <option value="LUCAS">Lucas (Supervisor)</option>
-              <option value="EDUARDO">Eduardo (Gerente Comercial)</option>
-              <option value="JULIA">Julia (Analista Comercial)</option>
-              <option value="JULIANA">Juliana (Consultora Comercial)</option>
-              <option value="IVAN LÁZARO">Ivan Lázaro (Diretor Comercial)</option>
+              <option value="ADMINISTRADOR" selected>Administrador (Master)</option>
             </select>
             <button type="button" class="btn-logout-action" id="btn-logout" title="Encerrar sessão no sistema">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
