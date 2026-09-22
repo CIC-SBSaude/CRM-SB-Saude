@@ -10,6 +10,44 @@
   const STORAGE_KEY = 'crm_sb_saude_db_v1';
   let appData = null;
 
+  function normalizeCopartPolicy(p) {
+    if (!p) return null;
+    const nome = (p.Nome_Politica || p['Politica Coparticipacao'] || p.nome_politica || '').trim();
+    if (!nome) return null;
+    const desc = p.Percentual_Desconto_Evento || p.Desconto_Evento || p['Percentual Desconto Evento'] || p.percentual_desconto_evento || '0,00%';
+    const ultrapasse = p.Qnt_Partida_Evento !== undefined && p.Qnt_Partida_Evento !== null ? String(p.Qnt_Partida_Evento) : (p['Qnt Partida Evento'] !== undefined && p['Qnt Partida Evento'] !== null ? String(p['Qnt Partida Evento']) : (p.qnt_partida_evento !== undefined && p.qnt_partida_evento !== null ? String(p.qnt_partida_evento) : '0'));
+    const eletiva = p.Valor_Consulta_Eletiva || p.Consulta_Eletiva || p['Valor Consulta Eletiva'] || p.valor_consulta_eletiva || 'R$ 0,00';
+    const emergencia = p.Valor_Consulta_Emergencia || p.Emergencia || p['Valor Consulta Emergencia'] || p.valor_consulta_emergencia || 'R$ 0,00';
+    const simples = p.Valor_Exames_Simples || p.Exames_Simples || p['Valor Exames Simples'] || p.valor_exames_simples || 'R$ 0,00';
+    const complexos = p.Valor_Exames_Complexos || p.Exames_Complexos || p['Valor Exames Complexos'] || p.valor_exames_complexos || 'R$ 0,00';
+    const terapia = (p.Terapia || p['Terapia'] || p.terapia || 'Não') === 'Sim' ? 'Sim' : 'Não';
+    const valorTerapia = terapia === 'Sim' ? (p.Valor_Terapia || p['Valor Terapia'] || p.valor_terapia || 'R$ 0,00') : 'Não aplicável';
+    const imagem = p.Imagem !== undefined ? p.Imagem : (p['Imagem'] !== undefined ? p['Imagem'] : (p.imagem || ''));
+    const idPolitica = p.Id_Politica || p['ID Politica'] || p.id_politica || (p.id ? `CP-${p.id}` : `CP-${Date.now()}`);
+    const rowNumber = p._RowNumber || p.row_number || (p.id ? String(p.id + 1) : null);
+
+    return {
+      id: p.id || null,
+      _RowNumber: rowNumber,
+      Id_Politica: idPolitica,
+      Nome_Politica: nome,
+      Percentual_Desconto_Evento: desc,
+      Desconto_Evento: desc,
+      Qnt_Partida_Evento: ultrapasse,
+      Valor_Consulta_Eletiva: eletiva,
+      Consulta_Eletiva: eletiva,
+      Valor_Consulta_Emergencia: emergencia,
+      Emergencia: emergencia,
+      Valor_Exames_Simples: simples,
+      Exames_Simples: simples,
+      Valor_Exames_Complexos: complexos,
+      Exames_Complexos: complexos,
+      Terapia: terapia,
+      Valor_Terapia: valorTerapia,
+      Imagem: imagem
+    };
+  }
+
   function initDataStore() {
     const cached = localStorage.getItem(STORAGE_KEY);
     if (cached) {
@@ -41,6 +79,14 @@
         });
         saveDataStore();
       }
+    }
+
+    // Normalização das Políticas de Coparticipação (migra chaves legadas e garante formato canônico único)
+    if (appData && Array.isArray(appData.coparticipationPolicies)) {
+      appData.coparticipationPolicies = appData.coparticipationPolicies.map(cp => normalizeCopartPolicy(cp)).filter(Boolean);
+    } else if (window.CRM_INITIAL_DATA && Array.isArray(window.CRM_INITIAL_DATA.coparticipationPolicies)) {
+      appData = appData || {};
+      appData.coparticipationPolicies = window.CRM_INITIAL_DATA.coparticipationPolicies.map(cp => normalizeCopartPolicy(cp)).filter(Boolean);
     }
 
     // Sanitização e normalização da carteira de corretores (garante campo CORRETOR_1 e fallback íntegro)
@@ -114,7 +160,7 @@
         updated = true;
       }
       if (Array.isArray(coparts) && coparts.length > 0) {
-        appData.coparticipationPolicies = coparts;
+        appData.coparticipationPolicies = coparts.map(cp => normalizeCopartPolicy(cp)).filter(Boolean);
         updated = true;
       }
       if (Array.isArray(brokers) && brokers.length > 0) {
@@ -214,29 +260,40 @@
           }
         },
         onCopartChange: (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const p = payload.new;
-            const idx = appData.coparticipationPolicies.findIndex(item => (item['Politica Coparticipacao'] || '').toLowerCase() === (p.nome_politica || '').toLowerCase());
-            const mapped = {
-              'ID Politica': p.id_politica,
-              'Politica Coparticipacao': p.nome_politica,
-              'Percentual Desconto Evento': p.percentual_desconto_evento,
-              'Qnt Partida Evento': p.qnt_partida_evento,
-              'Valor Consulta Eletiva': p.valor_consulta_eletiva,
-              'Valor Consulta Emergencia': p.valor_consulta_emergencia,
-              'Valor Exames Simples': p.valor_exames_simples,
-              'Valor Exames Complexos': p.valor_exames_complexos,
-              'Valor Terapia': p.valor_terapia,
-              'Imagem': p.imagem,
-              'Terapia': p.terapia
-            };
-            if (idx !== -1) {
-              appData.coparticipationPolicies[idx] = { ...appData.coparticipationPolicies[idx], ...mapped };
-            } else {
-              appData.coparticipationPolicies.push(mapped);
+          if (!Array.isArray(appData.coparticipationPolicies)) {
+            appData.coparticipationPolicies = [];
+          }
+          if (payload.eventType === 'INSERT') {
+            const canonical = window.crmSupabase ? window.crmSupabase.mapDbToCopartPolicy(payload.new) : normalizeCopartPolicy(payload.new);
+            if (canonical && canonical.Nome_Politica) {
+              const exists = appData.coparticipationPolicies.some(item => (canonical.id && item.id === canonical.id) || (item.Nome_Politica && item.Nome_Politica.toLowerCase() === canonical.Nome_Politica.toLowerCase()));
+              if (!exists) {
+                appData.coparticipationPolicies.push(canonical);
+                saveDataStore();
+                if (state.currentTab === 'policies' && typeof renderView === 'function') renderView();
+              }
             }
-            saveDataStore();
-            if (state.currentTab === 'policies' && typeof renderView === 'function') renderView();
+          } else if (payload.eventType === 'UPDATE') {
+            const canonical = window.crmSupabase ? window.crmSupabase.mapDbToCopartPolicy(payload.new) : normalizeCopartPolicy(payload.new);
+            if (canonical) {
+              const idx = appData.coparticipationPolicies.findIndex(item => (canonical.id && item.id === canonical.id) || (canonical.Id_Politica && item.Id_Politica === canonical.Id_Politica) || (canonical.Nome_Politica && item.Nome_Politica && item.Nome_Politica.toLowerCase() === canonical.Nome_Politica.toLowerCase()));
+              if (idx !== -1) {
+                appData.coparticipationPolicies[idx] = canonical;
+              } else {
+                appData.coparticipationPolicies.push(canonical);
+              }
+              saveDataStore();
+              if (state.currentTab === 'policies' && typeof renderView === 'function') renderView();
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const oldId = payload.old?.id;
+            const oldNome = payload.old?.nome_politica;
+            const idx = appData.coparticipationPolicies.findIndex(item => (oldId && item.id === oldId) || (oldNome && item.Nome_Politica && item.Nome_Politica.toLowerCase() === oldNome.toLowerCase()));
+            if (idx !== -1) {
+              appData.coparticipationPolicies.splice(idx, 1);
+              saveDataStore();
+              if (state.currentTab === 'policies' && typeof renderView === 'function') renderView();
+            }
           }
         },
         onUserChange: (payload) => {
@@ -4774,13 +4831,16 @@
             ${copart.map((c, idx) => `
               <tr>
                 <td>
-                  <div style="display:flex; align-items:center; gap:0.5rem;">
-                    ${c.Imagem ? `<img src="${c.Imagem}" alt="" style="width:24px; height:24px; object-fit:contain; border-radius:4px; border:1px solid var(--border-subtle);">` : ''}
-                    <strong>${c.Nome_Politica}</strong>
+                  <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <div class="copart-thumb-wrapper">
+                      ${c.Imagem ? `<img class="copart-thumb-img" src="${c.Imagem}" alt="${c.Nome_Politica || ''}" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">` : ''}
+                      <span class="copart-fallback-icon" style="${c.Imagem ? 'display:none;' : 'display:flex;'}">🛡️</span>
+                    </div>
+                    <strong>${c.Nome_Politica || 'Sem nome'}</strong>
                   </div>
                 </td>
                 <td class="tnum">${c.Percentual_Desconto_Evento || c.Desconto_Evento || '0,00%'}</td>
-                <td class="tnum">${c.Qnt_Partida_Evento || '0'}</td>
+                <td class="tnum">${c.Qnt_Partida_Evento ?? '0'}</td>
                 <td class="tnum">${c.Valor_Consulta_Eletiva || c.Consulta_Eletiva || '-'}</td>
                 <td class="tnum">${c.Valor_Consulta_Emergencia || c.Emergencia || '-'}</td>
                 <td class="tnum">${c.Valor_Exames_Simples || c.Exames_Simples || '-'}</td>
@@ -4788,8 +4848,8 @@
                 <td>${c.Terapia === 'Sim' ? '<span class="temp-badge temp-fechado">Sim</span>' : '<span class="temp-badge temp-fria">Não</span>'}</td>
                 <td class="tnum">${c.Valor_Terapia || 'Não aplicável'}</td>
                 <td style="text-align:right;">
-                  <button class="btn btn-ghost btn-xs btn-edit-copart" data-index="${idx}" title="Editar Modelo">✏️</button>
-                  ${idx >= 2 ? `<button class="btn btn-ghost btn-xs btn-delete-copart" data-index="${idx}" title="Excluir Modelo" style="color:var(--danger);">🗑️</button>` : ''}
+                  <button class="btn btn-ghost btn-xs btn-edit-copart" data-index="${idx}" data-id="${c.id || c.Id_Politica || ''}" title="Editar Modelo">✏️</button>
+                  <button class="btn btn-ghost btn-xs btn-delete-copart" data-index="${idx}" data-id="${c.id || c.Id_Politica || ''}" title="Excluir Modelo" style="color:var(--danger);">🗑️</button>
                 </td>
               </tr>
             `).join('')}
@@ -4809,21 +4869,55 @@
     container.querySelectorAll('.btn-edit-copart').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.index, 10);
-        if (copart[idx]) {
-          openNewCopartModal(copart[idx], idx);
+        const policyId = btn.dataset.id;
+        const item = (policyId && copart.find(p => String(p.id) === String(policyId) || String(p.Id_Politica) === String(policyId))) || copart[idx];
+        if (item) {
+          openNewCopartModal(item, idx);
         }
       });
     });
 
     container.querySelectorAll('.btn-delete-copart').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const idx = parseInt(btn.dataset.index, 10);
-        const item = copart[idx];
-        if (item && confirm(`Tem certeza que deseja excluir o modelo de coparticipação "${item.Nome_Politica}"?`)) {
-          copart.splice(idx, 1);
+        const policyId = btn.dataset.id;
+        const item = (policyId && copart.find(p => String(p.id) === String(policyId) || String(p.Id_Politica) === String(policyId))) || copart[idx];
+        if (!item) return;
+
+        if (!confirm(`Tem certeza que deseja excluir o modelo de coparticipação "${item.Nome_Politica}"?`)) {
+          return;
+        }
+
+        btn.disabled = true;
+        try {
+          if (window.crmSupabase?.isConnected) {
+            const idToDelete = item.id || item.Id_Politica || item.Nome_Politica;
+            const res = await window.crmSupabase.deleteCopartPolicy(idToDelete);
+            if (!res || !res.success) {
+              throw new Error(res?.error || 'Erro ao persistir exclusão no Supabase');
+            }
+          }
+
+          // Removendo localmente apenas após confirmação do servidor
+          const freshIndex = (appData.coparticipationPolicies || []).findIndex(p => 
+            (item.id && p.id === item.id) || 
+            (item.Id_Politica && p.Id_Politica === item.Id_Politica) ||
+            (p.Nome_Politica && item.Nome_Politica && p.Nome_Politica.toLowerCase() === item.Nome_Politica.toLowerCase())
+          );
+
+          if (freshIndex >= 0) {
+            appData.coparticipationPolicies.splice(freshIndex, 1);
+          } else {
+            copart.splice(idx, 1);
+          }
+
           saveDataStore();
-          showToast(`Modelo de coparticipação removido com sucesso.`);
+          showToast(`Modelo de coparticipação "${item.Nome_Politica}" removido com sucesso.`);
           renderView();
+        } catch (err) {
+          console.error('Erro ao excluir política de coparticipação:', err);
+          alert(`Falha ao excluir modelo de coparticipação: ${err.message || err}`);
+          btn.disabled = false;
         }
       });
     });
@@ -4931,11 +5025,14 @@
 
             <!-- 8. Imagem -->
             <div class="form-group" style="margin-bottom:1.25rem;">
-              <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">Imagem</label>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <label style="font-size:0.85rem; font-weight:600; color:var(--text-secondary); margin:0;">Imagem / Logotipo</label>
+                <button type="button" class="copart-img-remove-btn" id="btn-copart-remove-img" style="${currentImage ? '' : 'display:none;'}">Remover imagem</button>
+              </div>
               <input type="file" id="inp-copart-file" accept="image/*" style="display:none;">
               <div class="copart-image-upload-box" id="copart-image-box" title="Clique para anexar uma imagem">
                 <span class="copart-camera-icon" id="copart-camera-icon" style="${currentImage ? 'display:none;' : ''}">📷</span>
-                <img id="copart-img-preview" class="copart-img-preview" src="${currentImage}" style="${currentImage ? '' : 'display:none;'}" alt="Preview">
+                <img id="copart-img-preview" class="copart-img-preview" src="${currentImage || ''}" style="${currentImage ? '' : 'display:none;'}" alt="Preview" onerror="this.style.display='none'; const cam = document.getElementById('copart-camera-icon'); if (cam) cam.style.display='block';">
               </div>
             </div>
 
@@ -5023,7 +5120,8 @@
     applyCurrencyFormatting(inpExamesComplexos);
     applyCurrencyFormatting(inpValorTerapia);
 
-    // Upload de Imagem
+    // Upload de Imagem e Remoção
+    const btnRemoveImg = modal.querySelector('#btn-copart-remove-img');
     boxImage.addEventListener('click', () => fileImage.click());
     fileImage.addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -5034,10 +5132,23 @@
           imgPreview.src = currentImage;
           imgPreview.style.display = 'block';
           iconCamera.style.display = 'none';
+          if (btnRemoveImg) btnRemoveImg.style.display = 'inline-block';
         };
         reader.readAsDataURL(file);
       }
     });
+
+    if (btnRemoveImg) {
+      btnRemoveImg.addEventListener('click', (e) => {
+        e.stopPropagation();
+        currentImage = '';
+        fileImage.value = '';
+        imgPreview.src = '';
+        imgPreview.style.display = 'none';
+        iconCamera.style.display = 'block';
+        btnRemoveImg.style.display = 'none';
+      });
+    }
 
     // Segmented Sim / Não para Terapia
     modal.querySelectorAll('#copart-terapia-segmented button').forEach(btn => {
@@ -5059,10 +5170,29 @@
     modal.querySelector('#btn-cancel-copart-modal').addEventListener('click', () => modal.classList.remove('active'));
 
     // Salvar
-    modal.querySelector('#btn-save-copart-policy').addEventListener('click', () => {
+    const btnSave = modal.querySelector('#btn-save-copart-policy');
+    btnSave.addEventListener('click', async () => {
       const nome = inpNome.value.trim();
       if (!nome) {
         alert('Por favor informe o Nome da Política de Coparticipação.');
+        inpNome.focus();
+        return;
+      }
+
+      // Validação de unicidade do nome
+      const existingDuplicate = (appData.coparticipationPolicies || []).find(p => {
+        const pName = (p.Nome_Politica || '').trim().toLowerCase();
+        if (pName !== nome.toLowerCase()) return false;
+        if (isEdit && editItem) {
+          if (editItem.id && p.id) return String(editItem.id) !== String(p.id);
+          if (editItem.Id_Politica && p.Id_Politica) return String(editItem.Id_Politica) !== String(p.Id_Politica);
+          return false;
+        }
+        return true;
+      });
+
+      if (existingDuplicate) {
+        alert(`Já existe um modelo de coparticipação com o nome "${nome}". Por favor, defina um nome único.`);
         inpNome.focus();
         return;
       }
@@ -5076,6 +5206,7 @@
       const valorTerapiaVal = terapiaChoice === 'Sim' ? BusinessRules.formatCurrency(BusinessRules.parseCurrency(inpValorTerapia.value)) : 'Não aplicável';
 
       const policyObject = {
+        id: editItem ? (editItem.id || undefined) : undefined,
         _RowNumber: editItem ? editItem._RowNumber : String((appData.coparticipationPolicies.length + 2)),
         Id_Politica: editItem ? editItem.Id_Politica : Math.random().toString(16).substring(2, 10),
         Nome_Politica: nome,
@@ -5095,20 +5226,50 @@
         Imagem: currentImage || ''
       };
 
-      if (isEdit && editIndex >= 0) {
-        appData.coparticipationPolicies[editIndex] = { ...appData.coparticipationPolicies[editIndex], ...policyObject };
-        showToast(`Modelo de Coparticipação "${nome}" atualizado com sucesso!`);
-      } else {
-        appData.coparticipationPolicies.push(policyObject);
-        showToast(`Modelo de Coparticipação "${nome}" cadastrado com sucesso!`);
-      }
+      btnSave.disabled = true;
+      const originalBtnText = btnSave.textContent;
+      btnSave.textContent = 'Salvando no banco de dados...';
 
-      saveDataStore();
-      if (window.crmSupabase?.isConnected) {
-        window.crmSupabase.saveCopartPolicy(policyObject);
+      try {
+        let savedPolicy = policyObject;
+        if (window.crmSupabase?.isConnected) {
+          const res = await window.crmSupabase.saveCopartPolicy(policyObject);
+          if (!res || !res.success) {
+            throw new Error(res?.error || 'Erro ao persistir modelo no Supabase');
+          }
+          if (res.data) {
+            savedPolicy = { ...policyObject, ...res.data };
+          }
+        }
+
+        if (isEdit) {
+          const targetIdx = (editIndex >= 0 && editIndex < appData.coparticipationPolicies.length)
+            ? editIndex
+            : appData.coparticipationPolicies.findIndex(p => 
+                (savedPolicy.id && p.id === savedPolicy.id) || 
+                (savedPolicy.Id_Politica && p.Id_Politica === savedPolicy.Id_Politica)
+              );
+
+          if (targetIdx >= 0) {
+            appData.coparticipationPolicies[targetIdx] = savedPolicy;
+          } else {
+            appData.coparticipationPolicies.push(savedPolicy);
+          }
+          showToast(`Modelo de Coparticipação "${nome}" atualizado com sucesso!`);
+        } else {
+          appData.coparticipationPolicies.push(savedPolicy);
+          showToast(`Modelo de Coparticipação "${nome}" cadastrado com sucesso!`);
+        }
+
+        saveDataStore();
+        modal.classList.remove('active');
+        renderView();
+      } catch (err) {
+        console.error('Erro ao salvar modelo de coparticipação:', err);
+        alert(`Falha ao salvar modelo de coparticipação: ${err.message || err}\n\nOs dados informados foram mantidos na janela para você corrigir.`);
+        btnSave.disabled = false;
+        btnSave.textContent = originalBtnText;
       }
-      modal.classList.remove('active');
-      renderView();
     });
   }
 
@@ -5960,9 +6121,9 @@
               <div class="form-group form-full" id="group-copart" style="${initialFator.includes('Coparticipação') ? '' : 'display:none;'}">
                 <label>Política de Coparticipação Vinculada (RN-09)</label>
                 <select class="form-control" id="inp-politica-copart">
-                  ${appData.coparticipationPolicies.map(cp => `
-                    <option value="${cp.Nome_Politica}" ${initialCopart === cp.Nome_Politica ? 'selected' : ''}>
-                      ${cp.Nome_Politica} (Desconto: ${cp.Desconto_Evento || '0%'}, Consulta: ${cp.Consulta_Eletiva})
+                  ${(appData.coparticipationPolicies || []).map(cp => `
+                    <option value="${cp.Nome_Politica || ''}" ${initialCopart === cp.Nome_Politica ? 'selected' : ''}>
+                      ${cp.Nome_Politica || 'Sem nome'} (Desconto: ${cp.Percentual_Desconto_Evento || cp.Desconto_Evento || '0%'}, Consulta: ${cp.Valor_Consulta_Eletiva || cp.Consulta_Eletiva || '-'})
                     </option>
                   `).join('')}
                 </select>

@@ -367,6 +367,82 @@
       }
     }
 
+    mapDbToCopartPolicy(p) {
+      if (!p) return null;
+      const desc = p.percentual_desconto_evento || '0,00%';
+      const eletiva = p.valor_consulta_eletiva || 'R$ 0,00';
+      const emergencia = p.valor_consulta_emergencia || 'R$ 0,00';
+      const simples = p.valor_exames_simples || 'R$ 0,00';
+      const complexos = p.valor_exames_complexos || 'R$ 0,00';
+      const ultrapasse = p.qnt_partida_evento !== null && p.qnt_partida_evento !== undefined ? String(p.qnt_partida_evento) : '0';
+      const terapia = p.terapia === 'Sim' ? 'Sim' : 'Não';
+      const valorTerapia = p.valor_terapia || (terapia === 'Sim' ? 'R$ 0,00' : 'Não aplicável');
+      const nome = p.nome_politica || '';
+      const idPolitica = p.id_politica || (p.id ? `CP-${p.id}` : `CP-${Date.now()}`);
+      const rowNumber = p.row_number || (p.id ? String(p.id + 1) : null);
+      const imagem = p.imagem || '';
+
+      return {
+        id: p.id || null,
+        _RowNumber: rowNumber,
+        Id_Politica: idPolitica,
+        Nome_Politica: nome,
+        Percentual_Desconto_Evento: desc,
+        Desconto_Evento: desc,
+        Qnt_Partida_Evento: ultrapasse,
+        Valor_Consulta_Eletiva: eletiva,
+        Consulta_Eletiva: eletiva,
+        Valor_Consulta_Emergencia: emergencia,
+        Emergencia: emergencia,
+        Valor_Exames_Simples: simples,
+        Exames_Simples: simples,
+        Valor_Exames_Complexos: complexos,
+        Exames_Complexos: complexos,
+        Terapia: terapia,
+        Valor_Terapia: valorTerapia,
+        Imagem: imagem
+      };
+    }
+
+    mapCopartPolicyToDb(p) {
+      if (!p) return null;
+      const nome = (p.Nome_Politica || p['Politica Coparticipacao'] || p.nome_politica || '').trim();
+      const idPolitica = p.Id_Politica || p['ID Politica'] || p.id_politica || `CP-${Date.now()}`;
+      const desc = p.Percentual_Desconto_Evento || p.Desconto_Evento || p['Percentual Desconto Evento'] || p.percentual_desconto_evento || '0,00%';
+      const ultrapasse = p.Qnt_Partida_Evento !== undefined ? String(p.Qnt_Partida_Evento) : (p['Qnt Partida Evento'] !== undefined ? String(p['Qnt Partida Evento']) : (p.qnt_partida_evento !== undefined ? String(p.qnt_partida_evento) : '0'));
+      const eletiva = p.Valor_Consulta_Eletiva || p.Consulta_Eletiva || p['Valor Consulta Eletiva'] || p.valor_consulta_eletiva || 'R$ 0,00';
+      const emergencia = p.Valor_Consulta_Emergencia || p.Emergencia || p['Valor Consulta Emergencia'] || p.valor_consulta_emergencia || 'R$ 0,00';
+      const simples = p.Valor_Exames_Simples || p.Exames_Simples || p['Valor Exames Simples'] || p.valor_exames_simples || 'R$ 0,00';
+      const complexos = p.Valor_Exames_Complexos || p.Exames_Complexos || p['Valor Exames Complexos'] || p.valor_exames_complexos || 'R$ 0,00';
+      const terapia = (p.Terapia || p['Terapia'] || p.terapia || 'Não') === 'Sim' ? 'Sim' : 'Não';
+      const valorTerapia = terapia === 'Sim' ? (p.Valor_Terapia || p['Valor Terapia'] || p.valor_terapia || 'R$ 0,00') : 'Não aplicável';
+      const imagem = p.Imagem !== undefined ? p.Imagem : (p['Imagem'] !== undefined ? p['Imagem'] : (p.imagem || ''));
+
+      const dbRecord = {
+        id_politica: idPolitica,
+        nome_politica: nome,
+        percentual_desconto_evento: desc,
+        qnt_partida_evento: ultrapasse,
+        valor_consulta_eletiva: eletiva,
+        valor_consulta_emergencia: emergencia,
+        valor_exames_simples: simples,
+        valor_exames_complexos: complexos,
+        valor_terapia: valorTerapia,
+        imagem: imagem || null,
+        terapia: terapia,
+        updated_at: new Date().toISOString()
+      };
+
+      if (p.id) {
+        dbRecord.id = p.id;
+      }
+      if (p._RowNumber) {
+        const parsed = parseInt(p._RowNumber, 10);
+        if (!isNaN(parsed)) dbRecord.row_number = parsed;
+      }
+      return dbRecord;
+    }
+
     async fetchCopartPolicies() {
       if (!this.client) return null;
       try {
@@ -376,20 +452,7 @@
           .order('id', { ascending: true });
 
         if (error) throw error;
-        return data.map(p => ({
-          _RowNumber: p.row_number || p.id,
-          'ID Politica': p.id_politica,
-          'Politica Coparticipacao': p.nome_politica,
-          'Percentual Desconto Evento': p.percentual_desconto_evento,
-          'Qnt Partida Evento': p.qnt_partida_evento,
-          'Valor Consulta Eletiva': p.valor_consulta_eletiva,
-          'Valor Consulta Emergencia': p.valor_consulta_emergencia,
-          'Valor Exames Simples': p.valor_exames_simples,
-          'Valor Exames Complexos': p.valor_exames_complexos,
-          'Valor Terapia': p.valor_terapia,
-          'Imagem': p.imagem,
-          'Terapia': p.terapia
-        }));
+        return (data || []).map(p => this.mapDbToCopartPolicy(p));
       } catch (err) {
         console.warn('[Supabase] Erro ao carregar copart policies:', err);
         return null;
@@ -684,33 +747,95 @@
     }
 
     async saveCopartPolicy(p) {
-      if (!this.client) return false;
+      if (!this.client) {
+        return { success: false, error: 'Cliente Supabase não inicializado ou offline.' };
+      }
       try {
-        const record = {
-          id_politica: p['ID Politica'] || `CP-${Date.now()}`,
-          nome_politica: (p['Politica Coparticipacao'] || '').trim(),
-          percentual_desconto_evento: p['Percentual Desconto Evento'] || null,
-          qnt_partida_evento: p['Qnt Partida Evento'] || null,
-          valor_consulta_eletiva: p['Valor Consulta Eletiva'] || null,
-          valor_consulta_emergencia: p['Valor Consulta Emergencia'] || null,
-          valor_exames_simples: p['Valor Exames Simples'] || null,
-          valor_exames_complexos: p['Valor Exames Complexos'] || null,
-          valor_terapia: p['Valor Terapia'] || null,
-          imagem: p['Imagem'] || null,
-          terapia: p['Terapia'] || null,
-          updated_at: new Date().toISOString()
-        };
+        const record = this.mapCopartPolicyToDb(p);
+        if (!record || !record.nome_politica) {
+          return { success: false, error: 'O Nome da Política de Coparticipação é obrigatório.' };
+        }
 
-        const { error } = await this.client
-          .from('coparticipation_policies')
-          .upsert(record, { onConflict: 'nome_politica' });
+        let resultData = null;
+        if (p.id) {
+          // Edição de registro existente pelo ID primário estável
+          const updatePayload = {
+            id_politica: record.id_politica,
+            nome_politica: record.nome_politica,
+            percentual_desconto_evento: record.percentual_desconto_evento,
+            qnt_partida_evento: record.qnt_partida_evento,
+            valor_consulta_eletiva: record.valor_consulta_eletiva,
+            valor_consulta_emergencia: record.valor_consulta_emergencia,
+            valor_exames_simples: record.valor_exames_simples,
+            valor_exames_complexos: record.valor_exames_complexos,
+            valor_terapia: record.valor_terapia,
+            imagem: record.imagem,
+            terapia: record.terapia,
+            updated_at: record.updated_at
+          };
 
-        if (error) throw error;
-        console.log(`[Supabase] Modelo de coparticipação ${p['Politica Coparticipacao']} persistido com sucesso.`);
-        return true;
+          const { data, error } = await this.client
+            .from('coparticipation_policies')
+            .update(updatePayload)
+            .eq('id', p.id)
+            .select()
+            .single();
+
+          if (error) {
+            if (error.code === '23505') {
+              return { success: false, error: `Já existe outro modelo de coparticipação cadastrado com o nome "${record.nome_politica}".` };
+            }
+            throw error;
+          }
+          resultData = data;
+        } else {
+          // Criação de novo modelo
+          const insertPayload = { ...record };
+          delete insertPayload.id;
+
+          const { data, error } = await this.client
+            .from('coparticipation_policies')
+            .insert(insertPayload)
+            .select()
+            .single();
+
+          if (error) {
+            if (error.code === '23505') {
+              return { success: false, error: `Já existe um modelo de coparticipação cadastrado com o nome "${record.nome_politica}".` };
+            }
+            throw error;
+          }
+          resultData = data;
+        }
+
+        const canonical = this.mapDbToCopartPolicy(resultData);
+        console.log(`[Supabase] Modelo de coparticipação "${canonical.Nome_Politica}" salvo com sucesso (ID: ${canonical.id}).`);
+        return { success: true, data: canonical };
       } catch (err) {
         console.error('[Supabase] Erro ao salvar copart policy:', err);
-        return false;
+        return { success: false, error: err?.message || String(err) };
+      }
+    }
+
+    async deleteCopartPolicy(idOrName) {
+      if (!this.client) {
+        return { success: false, error: 'Cliente Supabase não inicializado ou offline.' };
+      }
+      try {
+        let query = this.client.from('coparticipation_policies').delete();
+        if (typeof idOrName === 'number' || (!isNaN(Number(idOrName)) && Number(idOrName) > 0)) {
+          query = query.eq('id', Number(idOrName));
+        } else {
+          query = query.eq('nome_politica', String(idOrName));
+        }
+
+        const { error } = await query;
+        if (error) throw error;
+        console.log(`[Supabase] Modelo de coparticipação ${idOrName} excluído do banco com sucesso.`);
+        return { success: true };
+      } catch (err) {
+        console.error('[Supabase] Erro ao excluir modelo de coparticipação:', err);
+        return { success: false, error: err?.message || String(err) };
       }
     }
 

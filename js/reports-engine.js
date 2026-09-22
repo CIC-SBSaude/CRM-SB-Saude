@@ -521,7 +521,7 @@
           records.push({
             TIPO_POLITICA: 'Coparticipação',
             NOME_POLITICA: cp.Nome_Politica || 'Coparticipação Padrão',
-            DESCONTO_EVENTO: cp.Percentual_Desconto_Evento ? `${cp.Percentual_Desconto_Evento}%` : '—',
+            DESCONTO_EVENTO: cp.Percentual_Desconto_Evento ? (String(cp.Percentual_Desconto_Evento).includes('%') ? cp.Percentual_Desconto_Evento : `${cp.Percentual_Desconto_Evento}%`) : '—',
             CONSULTA_ELETIVA: cp.Valor_Consulta_Eletiva ? formatCurrency(cp.Valor_Consulta_Eletiva) : '—',
             CONSULTA_EMERGENCIA: cp.Valor_Consulta_Emergencia ? formatCurrency(cp.Valor_Consulta_Emergencia) : '—',
             EXAMES_SIMPLES: cp.Valor_Exames_Simples ? formatCurrency(cp.Valor_Exames_Simples) : '—',
