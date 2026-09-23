@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste de Responsividade - Dashboard Executivo SB Saúde</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script>
+    window.__logs = [];
+    const _log = console.log;
+    console.log = function(...args) { window.__logs.push('LOG: ' + args.join(' ')); _log.apply(console, args); };
+    const _err = console.error;
+    console.error = function(...args) { window.__logs.push('ERR: ' + args.join(' ')); _err.apply(console, args); };
+    window.onerror = function(msg, url, line) { window.__logs.push('ONERROR: ' + msg + ' at ' + line); };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialTheme = urlParams.get('theme') || 'light';
+    localStorage.setItem('crm_auth_session', JSON.stringify({
+      login: 'ADMINISTRADOR',
+      name: 'Administrador Master',
+      profile: 'Administrador Master',
+      role: 'Administrador Master'
+    }));
+    localStorage.setItem('crm_active_user', 'ADMINISTRADOR');
+    localStorage.setItem('crm_theme_preference', initialTheme);
+    window.location.hash = '#dashboard';
+  </script>
+  <script src="/js/chart.min.js"></script>
+  <script src="/js/campanhas_data.js"></script>
+  <script src="/js/database.js"></script>
+  <script src="/js/supabase.js"></script>
+  <script src="/js/supabase-client.js"></script>
+  <script src="/js/business-rules.js"></script>
+  <script src="/js/strategic-insights.js"></script>
+  <script src="/js/reports-engine.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar" id="main-sidebar">
+      <div class="sidebar-header">
+        <div class="brand-container">
+          <div class="logo-mark"><span class="logo-cross">+</span></div>
+          <div class="brand-text">
+            <span class="brand-name">SB Saúde</span>
+            <span class="brand-sub">Comercial</span>
+          </div>
+        </div>
+        <button class="sidebar-toggle-btn" id="sidebar-toggle" title="Recolher menu">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item active" data-tab="dashboard" id="nav-item-dashboard">
+          <span class="nav-label">Dashboard</span>
+        </a>
+        <a class="nav-item" data-tab="proposals" id="nav-item-proposals">
+          <span class="nav-label">Prospecções</span>
+        </a>
+        <a class="nav-item" data-tab="reports" id="nav-item-reports">
+          <span class="nav-label">Relatórios</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer" id="sidebar-user-footer">
+        <div class="user-avatar" id="sidebar-user-avatar">AD</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-user-name">Administrador</div>
+          <div class="user-role" id="sidebar-user-role">Administrador Master</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header">
+        <button class="mobile-menu-btn" id="mobile-menu-btn" title="Menu">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+        <div class="header-search">
+          <input type="text" id="global-search" placeholder="Buscar empresas, prospecções ou corretores... (Ctrl+K)" />
+        </div>
+        <div class="header-actions">
+          <button type="button" class="theme-toggle-btn" id="theme-toggle" title="Alternar tema">
+            <span class="theme-toggle-icon">🌙</span>
+          </button>
+          <div class="header-user-badge">
+            <span class="header-user-avatar" id="header-user-avatar">AD</span>
+            <div class="header-user-details">
+              <span class="header-user-name" id="header-user-name">Administrador</span>
+              <span class="header-user-role" id="header-user-role">Administrador Master</span>
+            </div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-logout" title="Sair do sistema">Sair</button>
+          <select id="user-switch" style="display:none;"></select>
+        </div>
+      </header>
+
+      <section class="page-container" id="view-content">
+      </section>
+    </main>
+  </div>
+
+  <div class="login-overlay-screen" id="login-screen" style="display:none;"></div>
+  <div class="toast-container" id="toast-container"></div>
+  <div class="modal-overlay" id="modal-container" style="display:none;"></div>
+
+  <script src="/js/app.js"></script>
+
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const theme = params.get('theme') || 'light';
+
+          if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.setAttribute('data-theme-choice', 'dark');
+          } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            document.documentElement.setAttribute('data-theme-choice', 'light');
+          }
+
+          // Garante navegação no Dashboard
+          if (typeof window.navigateToTab === 'function') {
+            window.navigateToTab('dashboard');
+          }
+
+          setTimeout(() => {
+            const docEl = document.documentElement;
+            const bodyEl = document.body;
+
+            const kpiCards = document.querySelectorAll('.exec-kpi-card');
+            const insightCards = document.querySelectorAll('.exec-insight-card');
+            const destCols = document.querySelectorAll('.exec-destination-col');
+            const navCards = document.querySelectorAll('.exec-compact-nav-card');
+            const tableRows = document.querySelectorAll('#dashboard-action-table tbody tr');
+            const chartEvolution = document.getElementById('chart-evolution');
+            const chartPipeline = document.getElementById('chart-pipeline');
+            const chartLossOpp = document.getElementById('chart-loss-opp');
+
+            const payload = {
+              document: {
+                scrollWidth: docEl.scrollWidth,
+                clientWidth: docEl.clientWidth,
+                hasHorizontalScroll: (docEl.scrollWidth - docEl.clientWidth) > 1
+              },
+              body: {
+                scrollWidth: bodyEl.scrollWidth,
+                clientWidth: bodyEl.clientWidth,
+                hasHorizontalScroll: (bodyEl.scrollWidth - bodyEl.clientWidth) > 1
+              },
+              viewContentSnippet: (document.getElementById('view-content') || {}).innerHTML || '',
+              counts: {
+                kpiCards: kpiCards.length,
+                insightCards: insightCards.length,
+                destCols: destCols.length,
+                navCards: navCards.length,
+                tableRows: tableRows.length
+              },
+              charts: {
+                hasEvolution: !!chartEvolution,
+                hasPipeline: !!chartPipeline,
+                hasLossOpp: !!chartLossOpp
+              },
+              hasRealtimeBadge: !!document.getElementById('insights-realtime-badge'),
+              hasRefreshBtn: !!document.getElementById('btn-dashboard-refresh'),
+              refreshBtnClasses: (document.getElementById('btn-dashboard-refresh') || {}).className || '',
+              insightCardsScrollOverflow: Array.from(insightCards).some(c => c.scrollWidth > c.clientWidth + 1),
+              theme: docEl.getAttribute('data-theme'),
+              logs: window.__logs
+            };
+
+            document.body.setAttribute('data-test-status', 'success');
+            document.body.setAttribute('data-test-payload', JSON.stringify(payload));
+          }, 300);
+        } catch (err) {
+          document.body.setAttribute('data-test-status', 'error');
+          document.body.setAttribute('data-test-payload', JSON.stringify({ error: err.message, stack: err.stack }));
+        }
+      }, 500);
+    });
+  </script>
+</body>
+</html>

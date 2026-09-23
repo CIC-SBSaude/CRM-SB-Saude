@@ -41,13 +41,19 @@ async function runStrategicInsightsTests() {
 
   const fullInsights = StrategicInsights.calculateFactualStrategicInsights(proposals, { period: 'all' });
   const topBroker = fullInsights.topBroker;
+  const directChannel = fullInsights.directChannel;
 
   assert.ok(topBroker, 'O resultado do corretor líder deve existir');
-  assert.strictEqual(topBroker.name, 'Via Cadastro', 'O corretor líder histórico deve ser Via Cadastro');
-  assert.strictEqual(topBroker.count, 149, 'Via Cadastro deve ter exatamente 149 propostas');
-  assert.strictEqual(topBroker.closedCount, 149, 'Via Cadastro deve ter exatamente 149 propostas fechadas');
-  assert.strictEqual(topBroker.proposalIds.length, 149, 'A lista de IDs auditáveis de Via Cadastro deve ter 149 elementos');
-  console.log(`✓ 1.1: Corretor líder correto: ${topBroker.name} (${topBroker.count} propostas, ${topBroker.closedCount} fechadas).`);
+  assert.strictEqual(topBroker.name, 'Hub Health', 'O corretor parceiro líder histórico deve ser Hub Health');
+  assert.strictEqual(topBroker.count, 74, 'Hub Health deve ter 74 propostas');
+  assert.strictEqual(topBroker.closedCount, 2, 'Hub Health deve ter 2 contratos fechados');
+  assert.strictEqual(topBroker.proposalIds.length, 74, 'A lista de IDs auditáveis de Hub Health deve ter 74 elementos');
+
+  assert.ok(directChannel, 'O canal de entrada direta deve existir');
+  assert.strictEqual(directChannel.name, 'Via Cadastro', 'O canal direto de entrada manual deve ser Via Cadastro');
+  assert.strictEqual(directChannel.count, 149, 'Via Cadastro deve ter exatamente 149 propostas');
+  assert.strictEqual(directChannel.closedCount, 149, 'Via Cadastro deve ter exatamente 149 fechadas');
+  console.log(`✓ 1.1: Corretor credenciado parceiro líder: ${topBroker.name} (${topBroker.count} propostas) e Canal Direto: ${directChannel.name} (${directChannel.count} fechadas).`);
 
   // 1.2 Deduplicação do mesmo corretor repetido nas colunas 1, 2 e 3
   const duplicateBrokerProposal = {
@@ -153,6 +159,24 @@ async function runStrategicInsightsTests() {
   assert.strictEqual(closed.formattedRevenue.replace(/\u00a0/g, ' '), 'R$ 3.173.398,87', 'Faturamento formatado correto');
   assert.strictEqual(closed.proposalIds.length, 194, 'Lista de 194 IDs auditáveis');
   console.log(`✓ 4.1: Fechamento auditado: ${closed.closedCount} de ${closed.totalUniverse} (${closed.closureRate}%) — ${closed.formattedRevenue}.`);
+
+  // 4.2 Destinos Mutuamente Exclusivos do Pipeline Comercial
+  const dest = fullInsights.destinations;
+  assert.ok(dest, 'Destinos do pipeline devem existir');
+  assert.strictEqual(dest.inProgress.count, 389, 'Em andamento deve ter exatamente 389 propostas');
+  assert.strictEqual(dest.closed.count, 194, 'Fechadas deve ter exatamente 194 propostas');
+  assert.strictEqual(dest.lost.count, 489, 'Perdidas deve ter exatamente 489 propostas');
+  assert.strictEqual(dest.inProgress.count + dest.closed.count + dest.lost.count, 1072, 'Soma dos destinos deve reconciliar 1.072 propostas');
+  assert.strictEqual(dest.inProgress.lives + dest.closed.lives + dest.lost.lives, 477543, 'Soma das vidas deve reconciliar 477.543 vidas');
+  console.log(`✓ 4.2: Destinos mutuamente exclusivos: Em andamento (${dest.inProgress.count}), Fechadas (${dest.closed.count}), Perdidas (${dest.lost.count}) somam 1.072.`);
+
+  // 4.3 Seção O que Exige Atenção (Insights Acionáveis)
+  assert.ok(Array.isArray(fullInsights.actionableInsights), 'Lista de insights acionáveis deve existir');
+  assert.ok(fullInsights.actionableInsights.length >= 3, 'Devem existir no mínimo 3 insights priorizados');
+  const lossAlert = fullInsights.actionableInsights.find(i => i.id === 'loss-alert');
+  assert.ok(lossAlert, 'Insight de alerta de perda relevante deve existir');
+  assert.strictEqual(lossAlert.targetId, '103', 'Alerta deve apontar para a proposta #103');
+  console.log(`✓ 4.3: Insights acionáveis factuais gerados com sucesso (${fullInsights.actionableInsights.length} insights).`);
 
   // =========================================================================
   // TESTE 5: Filtros de Escopo e Bases Temporais

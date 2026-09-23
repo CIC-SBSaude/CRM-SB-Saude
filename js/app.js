@@ -561,32 +561,26 @@
 
   // 1. DASHBOARD EXECUTIVO DINÂMICO & COCKPIT ESTRATÉGICO
   const dashboardState = {
-    mainMetric: 'revenue_by_competence',
-    chartType: 'bar',
-    periodFilter: 'all',
-    insightsPeriod: 'all',
-    insightsDateField: 'prospeccao',
-    insightsDateFrom: '',
-    insightsDateTo: '',
+    period: 'all',
+    dateField: 'prospeccao',
+    dateFrom: '',
+    dateTo: '',
+    evolutionMetric: 'volume', // 'volume' | 'revenue' | 'lives'
+    evolutionChartType: 'bar', // 'bar' | 'line'
+    pipelineMetric: 'count', // 'count' | 'lives' | 'revenue'
+    lossTab: 'reasons', // 'reasons' | 'brokers' | 'ufs' | 'campaigns'
+    tableTab: 'priority', // 'priority' | 'revenue' | 'closed' | 'lost' | 'all'
+    tablePage: 1,
+    tablePageSize: 10,
     realtimeStatus: 'CONNECTING',
-    lastSyncTime: new Date().toLocaleTimeString('pt-BR')
+    lastSyncTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   };
-  let mainChartInstance = null;
+  let chartEvolutionInstance = null;
+  let chartPipelineInstance = null;
+  let chartLossOppInstance = null;
 
   function updateInsightsRealtimeBadge() {
-    const badge = document.getElementById('insights-realtime-badge');
     const syncTime = document.getElementById('insights-last-sync');
-    if (badge) {
-      if (dashboardState.realtimeStatus === 'SUBSCRIBED') {
-        badge.className = 'insights-realtime-badge live';
-        badge.innerHTML = '● Supabase Realtime Ativo';
-        badge.title = 'Conexão ativa com o Supabase Realtime local';
-      } else {
-        badge.className = 'insights-realtime-badge stale';
-        badge.innerHTML = '⚠️ Dados possivelmente desatualizados';
-        badge.title = `Status da conexão: ${dashboardState.realtimeStatus || 'Desconectado'}`;
-      }
-    }
     if (syncTime && dashboardState.lastSyncTime) {
       syncTime.textContent = dashboardState.lastSyncTime;
     }
@@ -601,7 +595,7 @@
           if (res && res.data && res.data.length > 0) {
             appData.proposals = res.data;
             saveDataStore();
-            dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
+            dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             if (typeof state !== 'undefined' && state.currentTab === 'dashboard') {
               const container = document.getElementById('app');
               if (container) renderDashboard(container);
@@ -614,7 +608,7 @@
     window.addEventListener('online', () => {
       if (window.crmSupabase) {
         window.crmSupabase.init();
-        dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
+        dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         if (typeof state !== 'undefined' && state.currentTab === 'dashboard') {
           const container = document.getElementById('app');
           if (container) renderDashboard(container);
@@ -624,6 +618,16 @@
   }
 
   // Funções Auxiliares do Dashboard Executivo
+  function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function getCompanySubtitle(p) {
     const customMap = {
       'SEG LIFE GESTAO EM SEGURANCA PRIVADA LTDA': 'CNPJ: Regular • Matriz Salvador/BA',
@@ -642,164 +646,684 @@
     return `${cnpj} • ${loc}`;
   }
 
-  function renderExecutiveFunnelRow(label, count, total, color, isHighlighted = false) {
-    const pct = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
-    const highlightClass = isHighlighted ? 'highlighted' : '';
+  function getStatusDotColor(status) {
+    const s = (status || '').toLowerCase();
+    if (s.includes('fechado')) return '#15803d';
+    if (s.includes('quente')) return '#c2410c';
+    if (s.includes('morna')) return '#a16207';
+    if (s.includes('fria')) return '#475569';
+    if (s.includes('declin')) return '#b91c1c';
+    if (s.includes('desist')) return '#475569';
+    return '#1d4ed8'; // Iniciada
+  }
+
+  function renderActionableTableRow(p) {
+    const subtitle = getCompanySubtitle(p);
+    const temp = p.TEMPERATURA_CONTRATO || 'Iniciada';
+    const broker = p.CORRETORES_1 || 'Unit';
+    const brokerInitial = broker.charAt(0).toUpperCase();
+    const dotColor = getStatusDotColor(temp);
+
     return `
-      <div class="exec-funnel-row interactive ${highlightClass}" data-temp="${label}" title="Clique para filtrar propostas em ${label}">
-        <div class="exec-funnel-left">
-          <span class="exec-funnel-dot" style="background-color: ${color};"></span>
-          <span class="exec-funnel-name">${label}</span>
-        </div>
-        <div class="exec-funnel-stats">
-          <span class="exec-funnel-count tnum">${count}</span>
-          <span class="exec-funnel-pct tnum">(${pct}%)</span>
-          <span class="exec-funnel-chevron">›</span>
-        </div>
-      </div>
+      <tr data-id="${p.ID}" class="exec-table-row">
+        <td>
+          <div class="company-cell">
+            <span class="company-name">${escapeHtml(p.EMPRESA || 'Empresa Não Informada')}</span>
+            <span class="company-sub">${escapeHtml(subtitle)}</span>
+          </div>
+        </td>
+        <td class="tnum" style="font-weight:600; color:var(--text-primary);">${p.VIDAS ? p.VIDAS + ' vidas' : '0 vidas'}</td>
+        <td class="tnum font-bold" style="color:var(--text-primary);">${p.FATURAMENTO || 'R$ 0,00'}</td>
+        <td style="color:var(--text-secondary);">${p.COMPETENCIA || '-'}</td>
+        <td>
+          <span class="rep-stage" style="color:${dotColor};">
+            <span class="rep-stage-dot" style="background-color:${dotColor};"></span>
+            <span>${escapeHtml(temp)}</span>
+          </span>
+        </td>
+        <td>
+          <div class="broker-cell">
+            <span class="broker-avatar">${brokerInitial}</span>
+            <span class="broker-name">${escapeHtml(broker)}</span>
+          </div>
+        </td>
+        <td>
+          <button class="exec-action-link btn-open-detail" data-id="${p.ID}">Ver Detalhes →</button>
+        </td>
+      </tr>
     `;
   }
 
-  function renderDashboardTableRows(list) {
-    return list.slice(0, 7).map(p => {
-      const subtitle = getCompanySubtitle(p);
-      const temp = p.TEMPERATURA_CONTRATO || 'Iniciada';
-      const broker = p.CORRETORES_1 || 'Unit';
-      const brokerInitial = broker.charAt(0).toUpperCase();
-      const isClosed = temp.toLowerCase().includes('fechado');
-      const isDesist = temp.toLowerCase().includes('desist');
+  // Motor Gráfico 1: Evolução Mensal (Série Temporal)
+  function renderEvolutionChart(proposals, scope) {
+    const canvas = document.getElementById('chart-evolution');
+    if (!canvas || typeof Chart === 'undefined') return;
 
-      let statusClass = 'status-default';
-      if (isClosed) statusClass = 'status-closed';
-      else if (isDesist) statusClass = 'status-desist';
-      else if (temp.toLowerCase().includes('declin')) statusClass = 'status-decline';
-      else if (temp.toLowerCase().includes('quente')) statusClass = 'status-hot';
-      else if (temp.toLowerCase().includes('morna')) statusClass = 'status-warm';
+    if (chartEvolutionInstance) {
+      chartEvolutionInstance.destroy();
+      chartEvolutionInstance = null;
+    }
 
-      return `
-        <tr data-id="${p.ID}" class="exec-table-row">
-          <td>
-            <div class="company-cell">
-              <span class="company-name">${p.EMPRESA || 'Empresa Não Informada'}</span>
-              <span class="company-sub">${subtitle}</span>
-            </div>
-          </td>
-          <td class="tnum" style="font-weight:600; color:var(--text-primary);">${p.VIDAS ? p.VIDAS + ' vidas' : '0 vidas'}</td>
-          <td class="tnum font-bold" style="color:var(--text-primary);">${p.FATURAMENTO || 'R$ 0,00'}</td>
-          <td style="color:var(--text-secondary);">${p.COMPETENCIA || '-'}</td>
-          <td>
-            <span class="exec-status-pill ${statusClass}">${temp}</span>
-          </td>
-          <td>
-            <div class="broker-cell">
-              <span class="broker-avatar">${brokerInitial}</span>
-              <span class="broker-name">${broker}</span>
-            </div>
-          </td>
-          <td>
-            <button class="exec-action-link btn-open-detail" data-id="${p.ID}">Ver Detalhes →</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
-  }
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#94a3b8' : '#64748b';
+    const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9';
+    const tooltipBg = isDark ? '#1e293b' : '#0f172a';
+    const tooltipBorder = isDark ? '#334155' : '#0f172a';
 
-  function renderDashboard(container) {
-    let proposals = appData.proposals || [];
+    const dateField = scope.dateField === 'competencia' ? 'COMPETENCIA' : 'DATA_DA_PROSPECCAO';
+    const metric = dashboardState.evolutionMetric || 'volume';
+    const chartType = dashboardState.evolutionChartType || 'bar';
 
-    const totalCount = proposals.length;
-
-    // Métricas Executivas
-    let totalLives = 0;
-    let totalRevenue = 0;
-    let closedCount = 0;
-    let closedRevenue = 0;
-    let closedLives = 0;
-    let declinedCount = 0;
-
-    const tempCounts = {
-      'Iniciada': 0,
-      'Fria': 0,
-      'Morna': 0,
-      'Quente': 0,
-      'Contrato Fechado': 0,
-      'Desistência da Empresa': 0,
-      'Declinado pela SB Saúde': 0
-    };
-
+    // Agrupa por mês/ano (MM/AAAA)
+    const monthMap = {};
     proposals.forEach(p => {
+      const d = (window.StrategicInsights && window.StrategicInsights.parseBrDate)
+        ? window.StrategicInsights.parseBrDate(p[dateField] || p.DATA_DA_PROSPECCAO || p.COMPETENCIA)
+        : null;
+      if (!d) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+      if (!monthMap[key]) {
+        monthMap[key] = {
+          label,
+          date: d,
+          totalCount: 0,
+          closedCount: 0,
+          totalRev: 0,
+          closedRev: 0,
+          totalLives: 0,
+          closedLives: 0
+        };
+      }
       const lives = BusinessRules.parseLives(p.VIDAS);
       const rev = BusinessRules.parseCurrency(p.FATURAMENTO);
-      totalLives += lives;
-      totalRevenue += rev;
+      const isClosed = (p.TEMPERATURA_CONTRATO || '').trim() === 'Contrato Fechado';
 
-      const temp = p.TEMPERATURA_CONTRATO || 'Iniciada';
-      if (tempCounts[temp] !== undefined) {
-        tempCounts[temp]++;
-      } else if (temp.includes('Desist')) {
-        tempCounts['Desistência da Empresa']++;
-      } else {
-        tempCounts['Iniciada']++;
-      }
-
-      if (temp === 'Contrato Fechado') {
-        closedCount++;
-        closedRevenue += rev;
-        closedLives += lives;
-      } else if (temp.includes('Declinado')) {
-        declinedCount++;
+      monthMap[key].totalCount++;
+      monthMap[key].totalRev += rev;
+      monthMap[key].totalLives += lives;
+      if (isClosed) {
+        monthMap[key].closedCount++;
+        monthMap[key].closedRev += rev;
+        monthMap[key].closedLives += lives;
       }
     });
 
-    const conversionRate = totalCount > 0 ? ((closedCount / totalCount) * 100).toFixed(1) : '0,0';
-    const avgTkm = totalLives > 0 ? (totalRevenue / totalLives) : 0;
-    const insightsScope = {
-      period: dashboardState.insightsPeriod || 'all',
-      dateField: dashboardState.insightsDateField || 'prospeccao',
-      dateFrom: dashboardState.insightsDateFrom || '',
-      dateTo: dashboardState.insightsDateTo || ''
+    const sortedMonths = Object.keys(monthMap).sort().slice(-10);
+    const labels = sortedMonths.map(k => monthMap[k].label);
+
+    let datasets = [];
+    if (metric === 'volume') {
+      datasets = [
+        {
+          label: 'Propostas Criadas',
+          data: sortedMonths.map(k => monthMap[k].totalCount),
+          backgroundColor: chartType === 'line' ? 'rgba(59, 130, 246, 0.15)' : '#3b82f6',
+          borderColor: '#3b82f6',
+          borderWidth: chartType === 'line' ? 2 : 0,
+          fill: chartType === 'line',
+          tension: 0.35,
+          borderRadius: chartType === 'bar' ? 4 : 0,
+          maxBarThickness: 24
+        },
+        {
+          label: 'Contratos Fechados',
+          data: sortedMonths.map(k => monthMap[k].closedCount),
+          backgroundColor: chartType === 'line' ? 'rgba(21, 128, 61, 0.15)' : '#16a34a',
+          borderColor: '#16a34a',
+          borderWidth: chartType === 'line' ? 2 : 0,
+          fill: chartType === 'line',
+          tension: 0.35,
+          borderRadius: chartType === 'bar' ? 4 : 0,
+          maxBarThickness: 24
+        }
+      ];
+    } else if (metric === 'revenue') {
+      datasets = [
+        {
+          label: 'Valor Cotado Total (R$)',
+          data: sortedMonths.map(k => monthMap[k].totalRev),
+          backgroundColor: chartType === 'line' ? 'rgba(190, 18, 60, 0.12)' : '#be123c',
+          borderColor: '#be123c',
+          borderWidth: chartType === 'line' ? 2 : 0,
+          fill: chartType === 'line',
+          tension: 0.35,
+          borderRadius: chartType === 'bar' ? 4 : 0,
+          maxBarThickness: 24
+        },
+        {
+          label: 'Faturamento Fechado (R$)',
+          data: sortedMonths.map(k => monthMap[k].closedRev),
+          backgroundColor: chartType === 'line' ? 'rgba(21, 128, 61, 0.15)' : '#16a34a',
+          borderColor: '#16a34a',
+          borderWidth: chartType === 'line' ? 2 : 0,
+          fill: chartType === 'line',
+          tension: 0.35,
+          borderRadius: chartType === 'bar' ? 4 : 0,
+          maxBarThickness: 24
+        }
+      ];
+    } else if (metric === 'lives') {
+      datasets = [
+        {
+          label: 'Vidas Cotadas',
+          data: sortedMonths.map(k => monthMap[k].totalLives),
+          backgroundColor: chartType === 'line' ? 'rgba(14, 165, 233, 0.15)' : '#0284c7',
+          borderColor: '#0284c7',
+          borderWidth: chartType === 'line' ? 2 : 0,
+          fill: chartType === 'line',
+          tension: 0.35,
+          borderRadius: chartType === 'bar' ? 4 : 0,
+          maxBarThickness: 24
+        },
+        {
+          label: 'Vidas Fechadas',
+          data: sortedMonths.map(k => monthMap[k].closedLives),
+          backgroundColor: chartType === 'line' ? 'rgba(21, 128, 61, 0.15)' : '#16a34a',
+          borderColor: '#16a34a',
+          borderWidth: chartType === 'line' ? 2 : 0,
+          fill: chartType === 'line',
+          tension: 0.35,
+          borderRadius: chartType === 'bar' ? 4 : 0,
+          maxBarThickness: 24
+        }
+      ];
+    }
+
+    try {
+      chartEvolutionInstance = new Chart(canvas, {
+        type: chartType,
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: { boxWidth: 12, font: { family: 'Inter', size: 11 }, color: textColor }
+            },
+            tooltip: {
+              padding: 10,
+              backgroundColor: tooltipBg,
+              borderColor: tooltipBorder,
+              borderWidth: isDark ? 1 : 0,
+              titleColor: '#ffffff',
+              bodyColor: isDark ? '#cbd5e1' : '#f8fafc',
+              titleFont: { family: 'Plus Jakarta Sans', weight: 'bold' },
+              bodyFont: { family: 'Inter' },
+              callbacks: {
+                label: (ctx) => {
+                  let v = ctx.parsed.y;
+                  if (metric === 'revenue') return `${ctx.dataset.label}: ${BusinessRules.formatCurrency(v)}`;
+                  if (metric === 'lives') return `${ctx.dataset.label}: ${v.toLocaleString('pt-BR')} vidas`;
+                  return `${ctx.dataset.label}: ${v} propostas`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { family: 'Inter', size: 10 }, color: textColor }
+            },
+            y: {
+              grid: { color: gridColor },
+              ticks: {
+                font: { family: 'Inter', size: 10 },
+                color: textColor,
+                callback: (v) => {
+                  if (metric === 'revenue') return 'R$ ' + (v >= 1000000 ? (v/1000000).toFixed(1) + 'M' : (v/1000).toFixed(0) + 'k');
+                  if (metric === 'lives') return v >= 1000 ? (v/1000).toFixed(0) + 'k' : v;
+                  return v;
+                }
+              }
+            }
+          }
+        }
+      });
+    } catch (e) {
+      console.error('Erro ao renderizar Chart de Evolução:', e);
+    }
+  }
+
+  // Motor Gráfico 2: Composição do Pipeline
+  function renderPipelineChart(destinations) {
+    const canvas = document.getElementById('chart-pipeline');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    if (chartPipelineInstance) {
+      chartPipelineInstance.destroy();
+      chartPipelineInstance = null;
+    }
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#94a3b8' : '#64748b';
+    const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9';
+    const tooltipBg = isDark ? '#1e293b' : '#0f172a';
+    const tooltipBorder = isDark ? '#334155' : '#0f172a';
+
+    const metric = dashboardState.pipelineMetric || 'count';
+    const labels = [
+      'Iniciada', 'Fria', 'Morna', 'Quente',
+      'Contrato Fechado',
+      'Desistência', 'Declinado'
+    ];
+
+    const getVal = (stage) => {
+      let st = null;
+      if (destinations.inProgress.statuses[stage]) st = destinations.inProgress.statuses[stage];
+      else if (stage === 'Contrato Fechado') st = destinations.closed.statuses['Contrato Fechado'];
+      else if (stage === 'Desistência') st = destinations.lost.statuses['Desistência da Empresa'];
+      else if (stage === 'Declinado') st = destinations.lost.statuses['Declinado pela SB Saúde'];
+
+      if (!st) return 0;
+      if (metric === 'lives') return st.lives || 0;
+      if (metric === 'revenue') return st.rev || 0;
+      return st.count || 0;
     };
+
+    const data = labels.map(getVal);
+    const colors = [
+      '#0284c7', '#64748b', '#d97706', '#ea580c',
+      '#16a34a',
+      '#94a3b8', '#dc2626'
+    ];
+
+    try {
+      chartPipelineInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: metric === 'revenue' ? 'Faturamento Previsto (R$)' : (metric === 'lives' ? 'Vidas' : 'Quantidade de Propostas'),
+            data,
+            backgroundColor: colors,
+            borderRadius: 6,
+            maxBarThickness: 28
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              padding: 10,
+              backgroundColor: tooltipBg,
+              borderColor: tooltipBorder,
+              borderWidth: isDark ? 1 : 0,
+              titleColor: '#ffffff',
+              bodyColor: isDark ? '#cbd5e1' : '#f8fafc',
+              callbacks: {
+                label: (ctx) => {
+                  let v = ctx.parsed.y;
+                  if (metric === 'revenue') return `Faturamento: ${BusinessRules.formatCurrency(v)}`;
+                  if (metric === 'lives') return `Vidas: ${v.toLocaleString('pt-BR')}`;
+                  return `Propostas: ${v}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { family: 'Inter', size: 10 }, color: textColor }
+            },
+            y: {
+              grid: { color: gridColor },
+              ticks: {
+                font: { family: 'Inter', size: 10 },
+                color: textColor,
+                callback: (v) => {
+                  if (metric === 'revenue') return 'R$ ' + (v >= 1000000 ? (v/1000000).toFixed(1) + 'M' : (v/1000).toFixed(0) + 'k');
+                  if (metric === 'lives') return v >= 1000 ? (v/1000).toFixed(0) + 'k' : v;
+                  return v;
+                }
+              }
+            }
+          }
+        }
+      });
+    } catch (e) {
+      console.error('Erro ao renderizar Chart de Pipeline:', e);
+    }
+  }
+
+  // Motor Gráfico 3: Perdas e Oportunidades (Barras Horizontais Ordenadas)
+  function renderLossOpportunityChart(proposals, destinations) {
+    const canvas = document.getElementById('chart-loss-opp');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    if (chartLossOppInstance) {
+      chartLossOppInstance.destroy();
+      chartLossOppInstance = null;
+    }
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#94a3b8' : '#64748b';
+    const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9';
+    const tooltipBg = isDark ? '#1e293b' : '#0f172a';
+    const tooltipBorder = isDark ? '#334155' : '#0f172a';
+
+    const tab = dashboardState.lossTab || 'reasons';
+    let labels = [];
+    let data = [];
+    let barColor = '#dc2626';
+
+    if (tab === 'reasons') {
+      const reasonsMap = {};
+      destinations.lost.proposals.forEach(p => {
+        let r = (p.Motivo_Declinio || '').trim();
+        if (!r) r = 'Sem motivo especificado';
+        reasonsMap[r] = (reasonsMap[r] || 0) + 1;
+      });
+      const sorted = Object.entries(reasonsMap).sort((a,b) => b[1] - a[1]).slice(0, 6);
+      labels = sorted.map(s => s[0].length > 30 ? s[0].slice(0, 30) + '…' : s[0]);
+      data = sorted.map(s => s[1]);
+      barColor = '#dc2626';
+    } else if (tab === 'brokers') {
+      const brokerMap = {};
+      proposals.forEach(p => {
+        const brokers = (window.StrategicInsights && window.StrategicInsights.extractBrokersFromProposal)
+          ? window.StrategicInsights.extractBrokersFromProposal(p, { includeViaCadastro: false })
+          : [p.CORRETORES_1];
+        brokers.forEach(b => {
+          if (!b) return;
+          brokerMap[b] = (brokerMap[b] || 0) + 1;
+        });
+      });
+      const sorted = Object.entries(brokerMap).sort((a,b) => b[1] - a[1]).slice(0, 7);
+      labels = sorted.map(s => s[0]);
+      data = sorted.map(s => s[1]);
+      barColor = '#2563eb';
+    } else if (tab === 'ufs') {
+      const ufMap = {};
+      proposals.forEach(p => {
+        const ufs = (window.StrategicInsights && window.StrategicInsights.extractUfsFromProposal)
+          ? window.StrategicInsights.extractUfsFromProposal(p)
+          : [p.UF];
+        ufs.forEach(u => {
+          if (!u) return;
+          ufMap[u] = (ufMap[u] || 0) + 1;
+        });
+      });
+      const sorted = Object.entries(ufMap).sort((a,b) => b[1] - a[1]).slice(0, 7);
+      labels = sorted.map(s => `Estado ${s[0]}`);
+      data = sorted.map(s => s[1]);
+      barColor = '#059669';
+    } else if (tab === 'campaigns') {
+      const campMap = {};
+      proposals.forEach(p => {
+        const c = p.PLANO_CAMPANHA || 'Geral';
+        campMap[c] = (campMap[c] || 0) + 1;
+      });
+      const sorted = Object.entries(campMap).sort((a,b) => b[1] - a[1]).slice(0, 7);
+      labels = sorted.map(s => s[0].replace('Campanha de ', '').replace('Campanha ', ''));
+      data = sorted.map(s => s[1]);
+      barColor = '#d97706';
+    }
+
+    try {
+      chartLossOppInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Ocorrências',
+            data,
+            backgroundColor: barColor,
+            borderRadius: 4,
+            maxBarThickness: 20
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              padding: 10,
+              backgroundColor: tooltipBg,
+              borderColor: tooltipBorder,
+              borderWidth: isDark ? 1 : 0,
+              titleColor: '#ffffff',
+              bodyColor: isDark ? '#cbd5e1' : '#f8fafc'
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: gridColor },
+              ticks: { font: { family: 'Inter', size: 10 }, color: textColor }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { font: { family: 'Inter', size: 10 }, color: textColor }
+            }
+          }
+        }
+      });
+    } catch (e) {
+      console.error('Erro ao renderizar Chart de Perdas/Oportunidades:', e);
+    }
+  }
+
+  // Renderização Completa do Dashboard Executivo
+  function renderDashboard(container) {
+    if (!container) return;
+    try {
+      const allProposals = (appData && Array.isArray(appData.proposals))
+        ? appData.proposals
+        : ((window.CRM_INITIAL_DATA && Array.isArray(window.CRM_INITIAL_DATA.proposals)) ? window.CRM_INITIAL_DATA.proposals : []);
+
+    const insightsScope = {
+      period: dashboardState.period || 'all',
+      dateField: dashboardState.dateField || 'prospeccao',
+      dateFrom: dashboardState.dateFrom || '',
+      dateTo: dashboardState.dateTo || ''
+    };
+
     const insights = (window.StrategicInsights && typeof window.StrategicInsights.calculateFactualStrategicInsights === 'function')
-      ? window.StrategicInsights.calculateFactualStrategicInsights(proposals, insightsScope)
-      : calculateStrategicInsights(proposals);
+      ? window.StrategicInsights.calculateFactualStrategicInsights(allProposals, insightsScope)
+      : {
+          scope: { periodLabel: 'Todo o histórico', dateFieldLabel: 'Data da Prospecção', totalUniverse: allProposals.length, filteredUniverse: allProposals.length, coveragePercent: '100.0' },
+          destinations: {
+            total: { count: allProposals.length, lives: 0, revenue: 0, formattedRevenue: 'R$ 0,00' },
+            inProgress: { count: 0, lives: 0, revenue: 0, formattedRevenue: 'R$ 0,00', pct: '0.0', statuses: {}, proposals: [] },
+            closed: { count: 0, lives: 0, revenue: 0, formattedRevenue: 'R$ 0,00', pct: '0.0', statuses: {}, proposals: [] },
+            lost: { count: 0, lives: 0, revenue: 0, formattedRevenue: 'R$ 0,00', pct: '0.0', statuses: {}, proposals: [] }
+          },
+          comparison: { hasComparison: false, reason: 'Base histórica completa' },
+          actionableInsights: [],
+          topBroker: { name: 'Sem dados', count: 0 },
+          directChannel: { name: 'Via Cadastro', count: 0 },
+          biggestProposal: { company: 'Sem dados', revenueFormatted: 'R$ 0,00', id: null },
+          topUf: { label: 'Sem dados', count: 0 },
+          closedProposals: { closedCount: 0, formattedRevenue: 'R$ 0,00', closureRate: '0.0' }
+        };
+
+    const filteredProposals = (window.StrategicInsights && window.StrategicInsights.filterProposalsByScope)
+      ? window.StrategicInsights.filterProposalsByScope(allProposals, insightsScope)
+      : allProposals;
+
+    const destinations = insights.destinations || {
+      total: { count: allProposals.length, lives: 0, revenue: 0, formattedRevenue: 'R$ 0,00' },
+      inProgress: { count: 0, lives: 0, revenue: 0, formattedRevenue: 'R$ 0,00', pct: '0.0', statuses: {}, proposals: [] },
+      closed: { count: 0, lives: 0, revenue: 0, formattedRevenue: 'R$ 0,00', pct: '0.0', statuses: {}, proposals: [] },
+      lost: { count: 0, lives: 0, revenue: 0, formattedRevenue: 'R$ 0,00', pct: '0.0', statuses: {}, proposals: [] }
+    };
+    const comparison = insights.comparison || { hasComparison: false };
+    const actionable = insights.actionableInsights || [];
+
+    const totalFilteredCount = filteredProposals.length;
+    const closedCount = destinations.closed.count;
+    const closedLives = destinations.closed.lives;
+    const closedRev = destinations.closed.revenue;
+    const formattedClosedRevenue = destinations.closed.formattedRevenue;
+    const conversionRate = destinations.closed.pct;
+
+    const inProgressCount = destinations.inProgress.count;
+    const inProgressLives = destinations.inProgress.lives;
+    const inProgressRev = destinations.inProgress.revenue;
+    const formattedInProgressRevenue = destinations.inProgress.formattedRevenue;
+
+    const lostCount = destinations.lost.count;
+    const lostLives = destinations.lost.lives;
+    const lostRev = destinations.lost.revenue;
+    const formattedLostRevenue = destinations.lost.formattedRevenue;
+    const desistCount = (destinations.lost.statuses['Desistência da Empresa'] || {}).count || 0;
+    const declinCount = (destinations.lost.statuses['Declinado pela SB Saúde'] || {}).count || 0;
+
+    // Subtextos comparativos
+    let closedCountDeltaHtml = '';
+    let closedLivesDeltaHtml = '';
+    let closedRevDeltaHtml = '';
+    let conversionDeltaHtml = '';
+
+    if (comparison.hasComparison) {
+      const dC = comparison.deltaClosedCount;
+      const dCPct = comparison.deltaClosedCountPct ? ` (${dC >= 0 ? '+' : ''}${comparison.deltaClosedCountPct}%)` : '';
+      closedCountDeltaHtml = `<span class="${dC >= 0 ? 'text-success' : 'text-danger'}" style="font-weight:600;">${dC >= 0 ? '↑ +' : '↓ '}${dC}${dCPct}</span> <span>vs ${comparison.periodLabel}</span>`;
+
+      const dL = comparison.deltaClosedLives;
+      closedLivesDeltaHtml = `<span class="${dL >= 0 ? 'text-success' : 'text-danger'}" style="font-weight:600;">${dL >= 0 ? '↑ +' : '↓ '}${dL.toLocaleString('pt-BR')}</span> <span>vs período anterior</span>`;
+
+      const dR = comparison.deltaClosedRev;
+      const dRPct = comparison.deltaClosedRevPct ? ` (${dR >= 0 ? '+' : ''}${comparison.deltaClosedRevPct}%)` : '';
+      closedRevDeltaHtml = `<span class="${dR >= 0 ? 'text-success' : 'text-danger'}" style="font-weight:600;">${dR >= 0 ? '↑ +' : '↓ '}${BusinessRules.formatCurrency(dR)}${dRPct}</span>`;
+
+      const dPts = comparison.deltaClosurePoints;
+      conversionDeltaHtml = `<span class="${parseFloat(dPts) >= 0 ? 'text-success' : 'text-danger'}" style="font-weight:600;">${parseFloat(dPts) >= 0 ? '↑ +' : '↓ '}${dPts} p.p.</span> <span>vs anterior</span>`;
+    } else {
+      closedCountDeltaHtml = `<span style="color:#059669; font-weight:600;">●</span> <span>Base acumulada do período</span>`;
+      closedLivesDeltaHtml = `<span style="color:#059669; font-weight:600;">●</span> <span>Beneficiários aceitos</span>`;
+      closedRevDeltaHtml = `<span>Faturamento mensal previsto aceito</span>`;
+      conversionDeltaHtml = `<span>${closedCount} de ${totalFilteredCount} propostas</span>`;
+    }
+
+    const periodLabel = insights.scope.periodLabel || 'Todo o histórico';
+    const dateFieldLabel = insights.scope.dateFieldLabel || 'Data da Prospecção';
+    const coveragePercent = allProposals.length > 0 ? ((totalFilteredCount / allProposals.length) * 100).toFixed(1) : '100.0';
+
+    // Filtragem para a tabela de Propostas Comerciais que Exigem Ação
+    const tableTab = dashboardState.tableTab || 'priority';
+    let tableProposals = [];
+    if (tableTab === 'priority') {
+      tableProposals = filteredProposals.filter(p => {
+        const t = (p.TEMPERATURA_CONTRATO || '').toLowerCase();
+        return t.includes('quente') || t.includes('morna');
+      });
+    } else if (tableTab === 'revenue') {
+      tableProposals = [...destinations.inProgress.proposals].sort((a,b) => BusinessRules.parseCurrency(b.FATURAMENTO) - BusinessRules.parseCurrency(a.FATURAMENTO));
+    } else if (tableTab === 'closed') {
+      tableProposals = destinations.closed.proposals;
+    } else if (tableTab === 'lost') {
+      tableProposals = destinations.lost.proposals;
+    } else {
+      tableProposals = filteredProposals;
+    }
+
+    const pageSize = dashboardState.tablePageSize || 10;
+    const curPage = Math.max(1, dashboardState.tablePage || 1);
+    const totalPages = Math.max(1, Math.ceil(tableProposals.length / pageSize));
+    const validPage = Math.min(curPage, totalPages);
+    const startIndex = (validPage - 1) * pageSize;
+    const pageSlice = tableProposals.slice(startIndex, startIndex + pageSize);
 
     container.innerHTML = `
       <div class="dashboard-exec-view">
         <!-- 1. Header Oficial (Clean & Executivo) -->
         <div class="exec-page-header">
-          <h2 class="exec-page-title">Dashboard Executivo SB Saúde</h2>
-          <p class="exec-page-subtitle">Inteligência de dados da carteira corporativa SB Saúde — clique em qualquer indicador ou estágio para análise profunda.</p>
+          <div class="exec-header-top">
+            <div>
+              <h2 class="exec-page-title">Dashboard Executivo SB Saúde</h2>
+              <p class="exec-page-subtitle">Inteligência de resultados, identificação ágil de riscos e direcionamento estratégico de propostas comerciais.</p>
+            </div>
+            <div class="exec-header-actions">
+              <button class="btn btn-primary btn-sm btn-new-quote" id="btn-dashboard-new-quote">+ Nova Cotação</button>
+            </div>
+          </div>
+          
+          <!-- Barra de Filtros Unificada -->
+          <div class="exec-filter-bar">
+            <div class="exec-filter-group">
+              <label for="dashboard-period-select" class="exec-filter-label">Período:</label>
+              <select id="dashboard-period-select" class="exec-select">
+                <option value="all" ${dashboardState.period === 'all' ? 'selected' : ''}>Todo o histórico</option>
+                <option value="current_month" ${dashboardState.period === 'current_month' ? 'selected' : ''}>Mês atual</option>
+                <option value="last_90_days" ${dashboardState.period === 'last_90_days' ? 'selected' : ''}>Últimos 90 dias</option>
+                <option value="custom" ${dashboardState.period === 'custom' ? 'selected' : ''}>Personalizado</option>
+              </select>
+            </div>
+
+            <div id="dashboard-custom-dates" class="exec-custom-dates" style="${dashboardState.period === 'custom' ? 'display:flex;' : 'display:none;'}">
+              <input type="date" id="dashboard-date-from" class="exec-date-input" value="${dashboardState.dateFrom || ''}" title="Data Inicial" />
+              <span class="exec-date-sep">até</span>
+              <input type="date" id="dashboard-date-to" class="exec-date-input" value="${dashboardState.dateTo || ''}" title="Data Final" />
+            </div>
+
+            <div class="exec-filter-group">
+              <label for="dashboard-date-field" class="exec-filter-label">Base Temporal:</label>
+              <select id="dashboard-date-field" class="exec-select">
+                <option value="prospeccao" ${dashboardState.dateField === 'prospeccao' ? 'selected' : ''}>Data da Prospecção</option>
+                <option value="competencia" ${dashboardState.dateField === 'competencia' ? 'selected' : ''}>Competência</option>
+              </select>
+            </div>
+
+            <button id="btn-dashboard-refresh" class="btn btn-secondary btn-sm exec-btn-refresh" title="Atualizar dados do painel">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+              <span>Atualizar</span>
+            </button>
+          </div>
+
+          <!-- Barra de Escopo e Metadados do Período -->
+          <div class="insights-scope-bar">
+            <div class="insights-scope-info">
+              <span>Exibindo <strong>${totalFilteredCount}</strong> de <strong>${allProposals.length}</strong> propostas (${coveragePercent}%)</span>
+              <span class="insights-scope-sep">•</span>
+              <span>Base: <strong>${dateFieldLabel}</strong></span>
+              <span class="insights-scope-sep">•</span>
+              <span>Período: <strong>${periodLabel}</strong></span>
+              <span class="insights-scope-sep">•</span>
+              <span>${comparison.hasComparison ? `Comparando com: <strong>${comparison.periodLabel}</strong>` : '<strong>Base histórica completa</strong> (sem período anterior comparável)'}</span>
+            </div>
+            <div class="insights-scope-meta">
+              <span class="insights-sync-time">Última atualização: <strong id="insights-last-sync">${dashboardState.lastSyncTime || '--:--'}</strong></span>
+            </div>
+          </div>
         </div>
 
-        <!-- 2. Grid de 6 KPIs Executivos -->
+        <!-- 2. Grid de 6 KPIs Executivos Reestruturados -->
         <div class="exec-kpi-grid">
-          <!-- Card 1: Volume Propostas -->
-          <div class="exec-kpi-card interactive" data-kpi="volume" title="Clique para ver detalhamento de volume">
+          <!-- KPI 1: Contratos Fechados -->
+          <div class="exec-kpi-card interactive" data-kpi="closed" title="Clique para ver contratos fechados">
             <div class="exec-kpi-header">
-              <span class="exec-kpi-label">VOLUME PROPOSTAS</span>
-              <div class="exec-kpi-icon-box">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
+              <span class="exec-kpi-label">CONTRATOS FECHADOS</span>
+              <div class="exec-kpi-icon-box kpi-icon-success">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
               </div>
             </div>
-            <div class="exec-kpi-val tnum">${totalCount.toLocaleString('pt-BR')}</div>
+            <div class="exec-kpi-val tnum">${closedCount.toLocaleString('pt-BR')}</div>
             <div class="exec-kpi-sub">
-              <span style="color:#059669; font-weight:600;">↑ 100%</span>
-              <span>mapeadas no pipeline</span>
+              ${closedCountDeltaHtml}
             </div>
-            <div class="exec-kpi-action">Explorar análise →</div>
+            <div class="exec-kpi-def">Propostas convertidas em contratos no período</div>
+            <div class="exec-kpi-action">Ver contratos fechados →</div>
           </div>
 
-          <!-- Card 2: Vidas em Cotação -->
-          <div class="exec-kpi-card interactive" data-kpi="lives" title="Clique para ver detalhamento por faixa de vidas">
+          <!-- KPI 2: Vidas Fechadas -->
+          <div class="exec-kpi-card interactive" data-kpi="closed_lives" title="Clique para ver vidas fechadas">
             <div class="exec-kpi-header">
-              <span class="exec-kpi-label">VIDAS EM COTAÇÃO</span>
-              <div class="exec-kpi-icon-box">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <span class="exec-kpi-label">VIDAS FECHADAS</span>
+              <div class="exec-kpi-icon-box kpi-icon-success">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                   <circle cx="9" cy="7" r="4"></circle>
                   <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -807,39 +1331,40 @@
                 </svg>
               </div>
             </div>
-            <div class="exec-kpi-val tnum">${totalLives.toLocaleString('pt-BR')}</div>
+            <div class="exec-kpi-val tnum">${closedLives.toLocaleString('pt-BR')}</div>
             <div class="exec-kpi-sub">
-              <span style="color:#059669; font-size:0.7rem;">●</span>
-              <span>${closedLives.toLocaleString('pt-BR')} vidas fechadas</span>
+              ${closedLivesDeltaHtml}
             </div>
-            <div class="exec-kpi-action">Explorar análise →</div>
+            <div class="exec-kpi-def">Beneficiários aceitos nos contratos fechados</div>
+            <div class="exec-kpi-action">Ver propostas por vidas →</div>
           </div>
 
-          <!-- Card 3: Faturam. Negociação -->
-          <div class="exec-kpi-card interactive" data-kpi="revenue" title="Clique para ver ranking de faturamento">
+          <!-- KPI 3: Valor das Propostas Fechadas -->
+          <div class="exec-kpi-card interactive" data-kpi="closed_revenue" title="Clique para ver faturamento fechado">
             <div class="exec-kpi-header">
-              <span class="exec-kpi-label">FATURAM. NEGOCIAÇÃO</span>
-              <div class="exec-kpi-icon-box">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <span class="exec-kpi-label">FATURAMENTO PREVISTO (FECHADAS)</span>
+              <div class="exec-kpi-icon-box kpi-icon-revenue">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
                   <circle cx="12" cy="12" r="10"></circle>
                   <line x1="12" y1="16" x2="12" y2="12"></line>
                   <line x1="12" y1="8" x2="12.01" y2="8"></line>
                 </svg>
               </div>
             </div>
-            <div class="exec-kpi-val tnum">R$ ${(totalRevenue / 1000000).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}M</div>
+            <div class="exec-kpi-val tnum">${formattedClosedRevenue}</div>
             <div class="exec-kpi-sub">
-              <span>R$ ${(closedRevenue / 1000000).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}M contratos fechados (status comercial)</span>
+              ${closedRevDeltaHtml}
             </div>
-            <div class="exec-kpi-action">Explorar análise →</div>
+            <div class="exec-kpi-def">Faturamento mensal cotado de aceitação (não caixa liquidado)</div>
+            <div class="exec-kpi-action">Ver faturamento aceito →</div>
           </div>
 
-          <!-- Card 4: Taxa de Conversão -->
-          <div class="exec-kpi-card interactive" data-kpi="conversion" title="Clique para ver contratos fechados">
+          <!-- KPI 4: Taxa de Conversão -->
+          <div class="exec-kpi-card interactive" data-kpi="conversion" title="Clique para detalhes da conversão">
             <div class="exec-kpi-header">
               <span class="exec-kpi-label">TAXA DE CONVERSÃO</span>
-              <div class="exec-kpi-icon-box">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <div class="exec-kpi-icon-box kpi-icon-conversion">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
                   <polyline points="17 6 23 6 23 12"></polyline>
                 </svg>
@@ -847,490 +1372,424 @@
             </div>
             <div class="exec-kpi-val tnum">${conversionRate}%</div>
             <div class="exec-kpi-sub">
-              <span>${closedCount} contratos fechados</span>
+              ${conversionDeltaHtml}
             </div>
-            <div class="exec-kpi-action">Explorar análise →</div>
+            <div class="exec-kpi-def">Percentual de fechamento sobre propostas do período</div>
+            <div class="exec-kpi-action">Auditar conversão →</div>
           </div>
 
-          <!-- Card 5: Ticket Médio (TKM) -->
-          <div class="exec-kpi-card interactive" data-kpi="tkm" title="Clique para ver análise do ticket médio">
+          <!-- KPI 5: Pipeline em Aberto -->
+          <div class="exec-kpi-card interactive" data-kpi="in_progress" title="Clique para ver oportunidades em aberto">
             <div class="exec-kpi-header">
-              <span class="exec-kpi-label">TICKET MÉDIO (TKM)</span>
-              <div class="exec-kpi-icon-box">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+              <span class="exec-kpi-label">PIPELINE EM ABERTO</span>
+              <div class="exec-kpi-icon-box kpi-icon-pipeline">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                  <polyline points="2 17 12 22 22 17"></polyline>
+                  <polyline points="2 12 12 17 22 12"></polyline>
                 </svg>
               </div>
             </div>
-            <div class="exec-kpi-val tnum">R$ ${avgTkm.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+            <div class="exec-kpi-val tnum">${inProgressCount.toLocaleString('pt-BR')} propostas</div>
             <div class="exec-kpi-sub">
-              <span>Média ponderada por vida</span>
+              <span>${inProgressLives.toLocaleString('pt-BR')} vidas • ${formattedInProgressRevenue}</span>
             </div>
-            <div class="exec-kpi-action">Explorar análise →</div>
+            <div class="exec-kpi-def">Oportunidades ativas em processo de negociação comercial</div>
+            <div class="exec-kpi-action">Ver ${inProgressCount} em aberto →</div>
           </div>
 
-          <!-- Card 6: Desistências / Decl... -->
-          <div class="exec-kpi-card interactive" data-kpi="declines" title="Clique para ver análise de declínios e desistências">
+          <!-- KPI 6: Propostas Perdidas -->
+          <div class="exec-kpi-card interactive" data-kpi="lost" title="Clique para ver propostas perdidas">
             <div class="exec-kpi-header">
-              <span class="exec-kpi-label">DESISTÊNCIAS / DECL...</span>
-              <div class="exec-kpi-icon-box">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <span class="exec-kpi-label">PROPOSTAS PERDIDAS</span>
+              <div class="exec-kpi-icon-box kpi-icon-lost">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
                   <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
                   <line x1="12" y1="9" x2="12" y2="13"></line>
                   <line x1="12" y1="17" x2="12.01" y2="17"></line>
                 </svg>
               </div>
             </div>
-            <div class="exec-kpi-val tnum">${declinedCount + tempCounts['Desistência da Empresa']}</div>
+            <div class="exec-kpi-val tnum">${lostCount.toLocaleString('pt-BR')} propostas</div>
             <div class="exec-kpi-sub">
-              <span>${tempCounts['Desistência da Empresa']} desistências + ${declinedCount} declin.</span>
+              <span>${desistCount} desistências • ${declinCount} declínios</span>
             </div>
-            <div class="exec-kpi-action">Explorar análise →</div>
+            <div class="exec-kpi-def">Cotações não convertidas (${formattedLostRevenue} cotados)</div>
+            <div class="exec-kpi-action">Ver diagnóstico de perdas →</div>
           </div>
         </div>
 
-        <!-- 3. Insights Estratégicos Fatuais em Tempo Real -->
+        <!-- 3. Seção: O que Exige Atenção (Insights Priorizados & Acionáveis) -->
         <div class="exec-insights-section">
           <div class="exec-insights-header">
             <div class="exec-insights-title-box">
               <span class="exec-insights-dot"></span>
-              <span class="exec-insights-title">INSIGHTS ESTRATÉGICOS EM TEMPO REAL</span>
+              <span class="exec-insights-title">O QUE EXIGE ATENÇÃO (INSIGHTS PRIORIZADOS)</span>
             </div>
-            
-            <div class="exec-insights-controls">
-              <div class="insights-control-group">
-                <label for="insights-period-select">Período:</label>
-                <select id="insights-period-select" class="insights-select">
-                  <option value="all" ${dashboardState.insightsPeriod === 'all' ? 'selected' : ''}>Todo o histórico</option>
-                  <option value="current_month" ${dashboardState.insightsPeriod === 'current_month' ? 'selected' : ''}>Mês atual</option>
-                  <option value="last_90_days" ${dashboardState.insightsPeriod === 'last_90_days' ? 'selected' : ''}>Últimos 90 dias</option>
-                  <option value="custom" ${dashboardState.insightsPeriod === 'custom' ? 'selected' : ''}>Personalizado</option>
-                </select>
-              </div>
-
-              <div id="insights-custom-dates" class="insights-custom-dates" style="${dashboardState.insightsPeriod === 'custom' ? 'display:flex;' : 'display:none;'}">
-                <input type="date" id="insights-date-from" class="insights-date-input" value="${dashboardState.insightsDateFrom || ''}" title="Data Inicial" />
-                <span style="color:var(--text-secondary); font-size:0.8rem;">até</span>
-                <input type="date" id="insights-date-to" class="insights-date-input" value="${dashboardState.insightsDateTo || ''}" title="Data Final" />
-              </div>
-
-              <div class="insights-control-group">
-                <label for="insights-date-field">Base Temporal:</label>
-                <select id="insights-date-field" class="insights-select">
-                  <option value="prospeccao" ${dashboardState.insightsDateField === 'prospeccao' ? 'selected' : ''}>Data da Prospecção</option>
-                  <option value="competencia" ${dashboardState.insightsDateField === 'competencia' ? 'selected' : ''}>Competência</option>
-                </select>
-              </div>
-
-              <button id="btn-refresh-insights" class="insights-btn-refresh" title="Sincronizar dados com o Supabase">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="23 4 23 10 17 10"></polyline>
-                  <polyline points="1 20 1 14 7 14"></polyline>
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                </svg>
-                <span>Atualizar</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Barra de Escopo e Metadados -->
-          <div class="insights-scope-bar">
-            <div class="insights-scope-info">
-              <span>Exibindo <strong>${insights.scope.filteredUniverse || insights.scope.totalUniverse}</strong> de <strong>${insights.scope.totalUniverse}</strong> propostas (${insights.scope.coveragePercent || '100,0'}%)</span>
-              <span class="insights-scope-sep">•</span>
-              <span>Base: <strong>${insights.scope.dateFieldLabel}</strong></span>
-              <span class="insights-scope-sep">•</span>
-              <span>Período: <strong>${insights.scope.periodLabel}</strong></span>
-            </div>
-            <div class="insights-scope-meta">
-              <span class="insights-sync-time">Última sinc.: <strong id="insights-last-sync">${dashboardState.lastSyncTime || '--:--:--'}</strong></span>
-              ${dashboardState.realtimeStatus === 'SUBSCRIBED' 
-                ? '<span class="insights-realtime-badge live" id="insights-realtime-badge" title="Conexão ativa com Supabase Realtime local">● Supabase Realtime Ativo</span>'
-                : '<span class="insights-realtime-badge stale" id="insights-realtime-badge" title="Canal desconectado ou em reconexão">⚠️ Dados possivelmente desatualizados</span>'
-              }
-            </div>
+            <span class="exec-insights-sub">${actionable.length} alertas factuais baseados nos dados do período selecionado</span>
           </div>
 
           <div class="exec-insights-grid">
-            <!-- Card 1: Corretor com mais propostas -->
-            <div class="exec-insight-card interactive" data-insight="top-broker" title="Clique para auditar as propostas deste corretor">
-              <div class="exec-insight-icon-box">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-              </div>
-              <div class="exec-insight-content">
-                <span class="exec-insight-category">CORRETOR COM MAIS PROPOSTAS</span>
-                <div class="exec-insight-title">${insights.topBroker.name}</div>
-                <div class="exec-insight-stat">${insights.topBroker.count > 0 ? `${insights.topBroker.count} propostas • ${insights.topBroker.closedCount} fechadas` : 'Sem propostas no período'}</div>
-                <div class="exec-insight-desc">
-                  ${insights.topBroker.count > 0 
-                    ? 'Considera titulares e co-corretores (1ª a 3ª posição) sem duplicidade.' 
-                    : 'Nenhum corretor identificado no escopo selecionado.'}
+            ${actionable.map(ins => {
+              const priorityClassMap = {
+                'badge-danger': 'priority-critical',
+                'badge-warning': 'priority-high',
+                'badge-neutral': 'priority-medium',
+                'badge-info': 'priority-info',
+                'badge-primary': 'priority-success'
+              };
+              const badgeIconMap = {
+                'badge-danger': '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+                'badge-warning': '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>',
+                'badge-neutral': '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',
+                'badge-info': '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+                'badge-primary': '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>'
+              };
+              const pClass = priorityClassMap[ins.badgeClass] || 'priority-info';
+              const bIcon = badgeIconMap[ins.badgeClass] || '';
+              const hasMore = ins.reason && ins.reason.length > 105;
+
+              return `
+              <div class="exec-insight-card interactive ${pClass}" data-insight-action="${ins.actionTarget}" data-insight-target="${ins.targetId || ins.targetFilter || ins.targetBroker || ins.targetUf || ''}">
+                <div class="exec-insight-top-bar">
+                  <span class="exec-insight-badge ${ins.badgeClass}">
+                    ${bIcon ? `<span class="exec-insight-badge-icon">${bIcon}</span>` : ''}
+                    <span>${ins.badge}</span>
+                  </span>
                 </div>
-                ${insights.topBroker.count > 0 ? `<div class="exec-insight-action">Auditar propostas (${insights.topBroker.count}) →</div>` : ''}
+                <div class="exec-insight-metric tnum">${ins.metric}</div>
+                <h4 class="exec-insight-title">${ins.title}</h4>
+                <div class="exec-insight-stat">${ins.metricSub}</div>
+                <div class="exec-insight-desc-wrap">
+                  <p class="exec-insight-desc ${hasMore ? 'has-more' : ''}">${ins.reason}</p>
+                  ${hasMore ? '<button type="button" class="exec-insight-expand-btn">Ver mais</button>' : ''}
+                </div>
+                <div class="exec-insight-footer">
+                  <span class="exec-insight-action">${ins.actionLabel}</span>
+                </div>
+              </div>
+            `;}).join('')}
+          </div>
+        </div>
+
+        <!-- 4. Destinos do Pipeline Comercial (Mutuamente Exclusivos) -->
+        <div class="exec-card exec-destinations-card">
+          <div class="exec-destinations-header">
+            <div>
+              <h3 class="exec-card-title">Destinos do Pipeline Comercial</h3>
+              <p class="exec-card-subtitle">Classificação em 3 macro-destinos mutuamente exclusivos que conciliam 100% da carteira filtrada.</p>
+            </div>
+            <div class="exec-destinations-summary-tag">
+              Total: <strong>${totalFilteredCount.toLocaleString('pt-BR')}</strong> propostas • <strong>${((destinations.total && destinations.total.lives) || 0).toLocaleString('pt-BR')}</strong> vidas • <strong>${(destinations.total && destinations.total.formattedRevenue) || 'R$ 0,00'}</strong>
+            </div>
+          </div>
+
+          <!-- Barra de Proporção Empilhada -->
+          <div class="exec-stacked-bar" title="Distribuição do Pipeline: Em Andamento (${destinations.inProgress.pct}%), Fechadas (${destinations.closed.pct}%), Perdidas (${destinations.lost.pct}%)">
+            <div class="exec-bar-seg seg-inprogress" style="width: ${destinations.inProgress.pct}%;"></div>
+            <div class="exec-bar-seg seg-closed" style="width: ${destinations.closed.pct}%;"></div>
+            <div class="exec-bar-seg seg-lost" style="width: ${destinations.lost.pct}%;"></div>
+          </div>
+
+          <div class="exec-destinations-grid">
+            <!-- Destino 1: Em Andamento -->
+            <div class="exec-destination-col interactive" data-dest="in_progress">
+              <div class="exec-dest-header">
+                <div class="exec-dest-title-wrap">
+                  <span class="exec-dest-dot dot-inprogress"></span>
+                  <span class="exec-dest-title">Em Andamento</span>
+                </div>
+                <span class="exec-dest-pct tnum">${destinations.inProgress.pct}%</span>
+              </div>
+              <div class="exec-dest-main-stat">
+                <span class="exec-dest-count tnum">${inProgressCount.toLocaleString('pt-BR')}</span>
+                <span class="exec-dest-sub">propostas</span>
+              </div>
+              <div class="exec-dest-meta">
+                <span>${inProgressLives.toLocaleString('pt-BR')} vidas</span>
+                <span class="meta-sep">•</span>
+                <span class="meta-rev">${formattedInProgressRevenue}</span>
+              </div>
+              <div class="exec-dest-sublist">
+                <div class="exec-subitem" data-stage="Iniciada">
+                  <span>Iniciada</span>
+                  <span class="tnum">${(destinations.inProgress.statuses['Iniciada'] || {}).count || 0} (${(destinations.inProgress.statuses['Iniciada'] || {}).pct || '0'}%)</span>
+                </div>
+                <div class="exec-subitem" data-stage="Fria">
+                  <span>Fria</span>
+                  <span class="tnum">${(destinations.inProgress.statuses['Fria'] || {}).count || 0} (${(destinations.inProgress.statuses['Fria'] || {}).pct || '0'}%)</span>
+                </div>
+                <div class="exec-subitem" data-stage="Morna">
+                  <span>Morna</span>
+                  <span class="tnum">${(destinations.inProgress.statuses['Morna'] || {}).count || 0} (${(destinations.inProgress.statuses['Morna'] || {}).pct || '0'}%)</span>
+                </div>
+                <div class="exec-subitem" data-stage="Quente">
+                  <span>Quente</span>
+                  <span class="tnum">${(destinations.inProgress.statuses['Quente'] || {}).count || 0} (${(destinations.inProgress.statuses['Quente'] || {}).pct || '0'}%)</span>
+                </div>
+              </div>
+              <div class="exec-dest-footer-action">Filtrar em andamento →</div>
+            </div>
+
+            <!-- Destino 2: Fechadas -->
+            <div class="exec-destination-col interactive dest-closed-col" data-dest="closed">
+              <div class="exec-dest-header">
+                <div class="exec-dest-title-wrap">
+                  <span class="exec-dest-dot dot-closed"></span>
+                  <span class="exec-dest-title">Fechadas</span>
+                </div>
+                <span class="exec-dest-pct tnum">${destinations.closed.pct}%</span>
+              </div>
+              <div class="exec-dest-main-stat">
+                <span class="exec-dest-count tnum">${closedCount.toLocaleString('pt-BR')}</span>
+                <span class="exec-dest-sub">contratos</span>
+              </div>
+              <div class="exec-dest-meta">
+                <span>${closedLives.toLocaleString('pt-BR')} vidas</span>
+                <span class="meta-sep">•</span>
+                <span class="meta-rev" style="color:#15803d;">${formattedClosedRevenue}</span>
+              </div>
+              <div class="exec-dest-sublist">
+                <div class="exec-subitem" data-stage="Contrato Fechado">
+                  <span>Contrato Fechado</span>
+                  <span class="tnum">${closedCount} (100%)</span>
+                </div>
+                <div class="exec-subitem-desc">
+                  Inclui 149 cadastros diretos e 45 via corretores credenciados parceiros.
+                </div>
+              </div>
+              <div class="exec-dest-footer-action">Ver contratos fechados →</div>
+            </div>
+
+            <!-- Destino 3: Perdidas -->
+            <div class="exec-destination-col interactive" data-dest="lost">
+              <div class="exec-dest-header">
+                <div class="exec-dest-title-wrap">
+                  <span class="exec-dest-dot dot-lost"></span>
+                  <span class="exec-dest-title">Perdidas</span>
+                </div>
+                <span class="exec-dest-pct tnum">${destinations.lost.pct}%</span>
+              </div>
+              <div class="exec-dest-main-stat">
+                <span class="exec-dest-count tnum">${lostCount.toLocaleString('pt-BR')}</span>
+                <span class="exec-dest-sub">propostas</span>
+              </div>
+              <div class="exec-dest-meta">
+                <span>${lostLives.toLocaleString('pt-BR')} vidas</span>
+                <span class="meta-sep">•</span>
+                <span class="meta-rev" style="color:#dc2626;">${formattedLostRevenue}</span>
+              </div>
+              <div class="exec-dest-sublist">
+                <div class="exec-subitem" data-stage="Desistência da Empresa">
+                  <span>Desistência da Empresa</span>
+                  <span class="tnum">${desistCount} (${(destinations.lost.statuses['Desistência da Empresa'] || {}).pct || '0'}%)</span>
+                </div>
+                <div class="exec-subitem" data-stage="Declinado pela SB Saúde">
+                  <span>Declinado pela SB Saúde</span>
+                  <span class="tnum">${declinCount} (${(destinations.lost.statuses['Declinado pela SB Saúde'] || {}).pct || '0'}%)</span>
+                </div>
+              </div>
+              <div class="exec-dest-footer-action">Ver diagnóstico de perdas →</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Seção de Três Visualizações Gráficas Principais -->
+        <div class="exec-charts-section">
+          <div class="exec-charts-grid">
+            <!-- Gráfico 1: Evolução Mensal -->
+            <div class="exec-card exec-chart-card">
+              <div class="exec-card-header">
+                <div>
+                  <h3 class="exec-card-title">Evolução Comercial</h3>
+                  <p class="exec-card-subtitle">Desempenho temporal por mês de ${dateFieldLabel.toLowerCase()}</p>
+                </div>
+                <div class="exec-chart-controls">
+                  <select class="exec-select" id="select-evolution-metric" title="Métrica da evolução">
+                    <option value="volume" ${dashboardState.evolutionMetric === 'volume' ? 'selected' : ''}>Volume (Criadas vs Fechadas)</option>
+                    <option value="revenue" ${dashboardState.evolutionMetric === 'revenue' ? 'selected' : ''}>Valor (Cotado vs Fechado)</option>
+                    <option value="lives" ${dashboardState.evolutionMetric === 'lives' ? 'selected' : ''}>Vidas Mapeadas</option>
+                  </select>
+                  <div class="exec-toggle-group">
+                    <button class="exec-toggle-btn ${dashboardState.evolutionChartType === 'bar' ? 'active' : ''}" data-type="bar" title="Barras">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                      </svg>
+                    </button>
+                    <button class="exec-toggle-btn ${dashboardState.evolutionChartType === 'line' ? 'active' : ''}" data-type="line" title="Linhas">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="exec-chart-body">
+                <canvas id="chart-evolution"></canvas>
               </div>
             </div>
 
-            <!-- Card 2: Maior Proposta do Período -->
-            <div class="exec-insight-card interactive" data-insight="biggest-deal" title="Clique para abrir os detalhes desta proposta">
-              <div class="exec-insight-icon-box">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="4" y="2" width="16" height="20" rx="2"></rect>
-                  <line x1="9" y1="6" x2="9.01" y2="6"></line>
-                  <line x1="15" y1="6" x2="15.01" y2="6"></line>
-                  <line x1="9" y1="10" x2="9.01" y2="10"></line>
-                  <line x1="15" y1="10" x2="15.01" y2="10"></line>
-                  <line x1="9" y1="14" x2="9.01" y2="14"></line>
-                  <line x1="15" y1="14" x2="15.01" y2="14"></line>
-                  <path d="M9 22v-4h6v4"></path>
-                </svg>
-              </div>
-              <div class="exec-insight-content">
-                <span class="exec-insight-category">MAIOR PROPOSTA DO PERÍODO</span>
-                <div class="exec-insight-title">${insights.biggestProposal.company}</div>
-                <div class="exec-insight-stat">${insights.biggestProposal.revenueFormatted} • ${insights.biggestProposal.livesFormatted} vidas</div>
-                <div class="exec-insight-desc">
-                  ${insights.biggestProposal.id ? `ID #${insights.biggestProposal.id} • Status: <span class="exec-status-pill status-${insights.biggestProposal.status.toLowerCase().includes('fech') ? 'closed' : insights.biggestProposal.status.toLowerCase().includes('desist') ? 'desist' : 'default'}">${insights.biggestProposal.status}</span>` : 'Nenhuma proposta no período.'}
+            <!-- Gráfico 2: Composição do Pipeline -->
+            <div class="exec-card exec-chart-card">
+              <div class="exec-card-header">
+                <div>
+                  <h3 class="exec-card-title">Composição do Pipeline</h3>
+                  <p class="exec-card-subtitle">Distribuição por estágios comerciais</p>
                 </div>
-                ${insights.biggestProposal.id ? `<div class="exec-insight-action">Abrir proposta #${insights.biggestProposal.id} →</div>` : ''}
+                <div class="exec-chart-controls">
+                  <select class="exec-select" id="select-pipeline-metric" title="Métrica do pipeline">
+                    <option value="count" ${dashboardState.pipelineMetric === 'count' ? 'selected' : ''}>Por Quantidade</option>
+                    <option value="lives" ${dashboardState.pipelineMetric === 'lives' ? 'selected' : ''}>Por Vidas</option>
+                    <option value="revenue" ${dashboardState.pipelineMetric === 'revenue' ? 'selected' : ''}>Por Faturamento (R$)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="exec-chart-body">
+                <canvas id="chart-pipeline"></canvas>
               </div>
             </div>
 
-            <!-- Card 3: UF com mais propostas -->
-            <div class="exec-insight-card interactive" data-insight="top-uf" title="Clique para auditar as propostas deste estado">
-              <div class="exec-insight-icon-box">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                  <circle cx="12" cy="10" r="3"></circle>
-                </svg>
-              </div>
-              <div class="exec-insight-content">
-                <span class="exec-insight-category">UF COM MAIS PROPOSTAS</span>
-                <div class="exec-insight-title">${insights.topUf.label}</div>
-                <div class="exec-insight-stat">${insights.topUf.count > 0 ? `${insights.topUf.count} propostas • ${insights.topUf.livesFormatted} vidas` : 'Sem propostas no período'}</div>
-                <div class="exec-insight-desc">
-                  ${insights.topUf.hasMultiUfProposals 
-                    ? 'Maior volume estadual. Propostas interestaduais vinculadas a cada UF participante.' 
-                    : 'Maior densidade geográfica de beneficiários e empresas cotadas.'}
+            <!-- Gráfico 3: Perdas e Oportunidades -->
+            <div class="exec-card exec-chart-card">
+              <div class="exec-card-header">
+                <div>
+                  <h3 class="exec-card-title">Perdas &amp; Oportunidades</h3>
+                  <p class="exec-card-subtitle">Análise das causas de perda e rankings de parceiros</p>
                 </div>
-                ${insights.topUf.count > 0 ? `<div class="exec-insight-action">Auditar estado (${insights.topUf.count}) →</div>` : ''}
+                <div class="exec-chart-controls">
+                  <select class="exec-select" id="select-loss-tab" title="Categoria de análise">
+                    <option value="reasons" ${dashboardState.lossTab === 'reasons' ? 'selected' : ''}>Motivos de Perda</option>
+                    <option value="brokers" ${dashboardState.lossTab === 'brokers' ? 'selected' : ''}>Top Corretores Parceiros</option>
+                    <option value="ufs" ${dashboardState.lossTab === 'ufs' ? 'selected' : ''}>Distribuição por Estado (UF)</option>
+                    <option value="campaigns" ${dashboardState.lossTab === 'campaigns' ? 'selected' : ''}>Campanhas Comerciais</option>
+                  </select>
+                </div>
               </div>
-            </div>
-
-            <!-- Card 4: Faturamento em Propostas Fechadas -->
-            <div class="exec-insight-card interactive" data-insight="closed-revenue" title="Clique para listar todas as propostas fechadas no período">
-              <div class="exec-insight-icon-box">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-              </div>
-              <div class="exec-insight-content">
-                <span class="exec-insight-category">FATURAMENTO EM PROPOSTAS FECHADAS</span>
-                <div class="exec-insight-title">${insights.closedProposals.formattedRevenue}</div>
-                <div class="exec-insight-stat">${insights.closedProposals.closedCount} de ${insights.closedProposals.totalUniverse} propostas (${insights.closedProposals.closureRate}%)</div>
-                <div class="exec-insight-desc">Faturamento somado exclusivamente de propostas com status Contrato Fechado no período.</div>
-                ${insights.closedProposals.closedCount > 0 ? `<div class="exec-insight-action">Ver contratos fechados (${insights.closedProposals.closedCount}) →</div>` : ''}
+              <div class="exec-chart-body">
+                <canvas id="chart-loss-opp"></canvas>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 4. Seção Média (7:5 Split) -->
-        <div class="exec-middle-grid">
-          <!-- Esquerda: Desempenho Comercial Analítico -->
-          <div class="exec-card">
-            <div class="exec-card-header">
-              <div>
-                <h3 class="exec-card-title">Desempenho Comercial Analítico</h3>
-                <p class="exec-card-subtitle">Selecione a métrica e o formato visual desejado</p>
-              </div>
-              <div class="exec-chart-controls">
-                <select class="exec-select" id="chart-metric-select" title="Selecione a métrica">
-                  <option value="revenue_by_competence" ${dashboardState.mainMetric === 'revenue_by_competence' ? 'selected' : ''}>Faturamento por Competência</option>
-                  <option value="pipeline_temperatures" ${dashboardState.mainMetric === 'pipeline_temperatures' ? 'selected' : ''}>Distribuição por Temperatura</option>
-                  <option value="top_brokers" ${dashboardState.mainMetric === 'top_brokers' ? 'selected' : ''}>Top 10 Corretores</option>
-                  <option value="geo_uf" ${dashboardState.mainMetric === 'geo_uf' ? 'selected' : ''}>Distribuição por Estado (UF)</option>
-                  <option value="campaigns_performance" ${dashboardState.mainMetric === 'campaigns_performance' ? 'selected' : ''}>Desempenho de Campanhas</option>
-                  <option value="plans_accommodation" ${dashboardState.mainMetric === 'plans_accommodation' ? 'selected' : ''}>Acomodação (Enf / Apt / Amb)</option>
-                </select>
-                <div class="exec-toggle-group">
-                  <button class="exec-toggle-btn ${dashboardState.chartType === 'bar' ? 'active' : ''}" data-type="bar" title="Gráfico de Barras">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <line x1="18" y1="20" x2="18" y2="10"></line>
-                      <line x1="12" y1="20" x2="12" y2="4"></line>
-                      <line x1="6" y1="20" x2="6" y2="14"></line>
-                    </svg>
-                  </button>
-                  <button class="exec-toggle-btn ${dashboardState.chartType === 'line' ? 'active' : ''}" data-type="line" title="Gráfico de Linhas">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div class="exec-chart-body">
-              <canvas id="mainDashboardChart"></canvas>
-            </div>
-            <div class="exec-chart-footer">
-              <div class="exec-legend-item">
-                <span class="exec-legend-square"></span>
-                <span>Faturamento Bruto Projetado por Competência</span>
-              </div>
-              <div class="exec-peak-tag">Competência de Pico: 01/11/2025</div>
-            </div>
-          </div>
-
-          <!-- Direita: Funil de Vendas Interativo (RN-05) -->
-          <div class="exec-card">
-            <div class="exec-card-header">
-              <div>
-                <h3 class="exec-card-title">Funil de Vendas Interativo (RN-05)</h3>
-                <p class="exec-card-subtitle">Clique em qualquer etapa para filtrar propostas</p>
-              </div>
-              <span class="exec-conversion-badge">${conversionRate}% Conversão</span>
-            </div>
-            <div class="exec-funnel-list">
-              ${renderExecutiveFunnelRow('Iniciada', tempCounts['Iniciada'], totalCount, '#0284c7')}
-              ${renderExecutiveFunnelRow('Fria', tempCounts['Fria'], totalCount, '#64748b')}
-              ${renderExecutiveFunnelRow('Morna', tempCounts['Morna'], totalCount, '#d97706')}
-              ${renderExecutiveFunnelRow('Quente', tempCounts['Quente'], totalCount, '#ea580c')}
-              ${renderExecutiveFunnelRow('Contrato Fechado', tempCounts['Contrato Fechado'], totalCount, '#16a34a', true)}
-              ${renderExecutiveFunnelRow('Desistência da Empresa', tempCounts['Desistência da Empresa'], totalCount, '#64748b')}
-              ${renderExecutiveFunnelRow('Declinado pela SB Saúde', tempCounts['Declinado pela SB Saúde'], totalCount, '#dc2626')}
-            </div>
-            <div class="exec-funnel-footer">
-              <span class="exec-funnel-sub">Critério RN-05: Validação ativa</span>
-              <span class="exec-funnel-total">${totalCount.toLocaleString('pt-BR')} Ocorrências Totais</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 5. Navegação Operacional — 9 Módulos do Sistema -->
-        <div class="exec-section-header">
-          <div class="exec-section-title-box">
-            <span class="exec-section-title">NAVEGAÇÃO OPERACIONAL</span>
-            <span class="exec-badge-pill">9 MÓDULOS DO SISTEMA</span>
-          </div>
-        </div>
-
-        <div class="exec-modules-grid">
-          <!-- 1: Nova Prospecção -->
-          <div class="exec-module-card" data-action="new-quote">
-            <div class="exec-module-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="3"></rect>
-                <line x1="12" y1="8" x2="12" y2="16"></line>
-                <line x1="8" y1="12" x2="16" y2="12"></line>
-              </svg>
-            </div>
-            <div class="exec-module-info">
-              <h4>Nova Prospecção</h4>
-              <p>Inclua uma nova cotação com cálculo automático de faturamento e competência.</p>
-            </div>
-          </div>
-
-          <!-- 2: Prospecções Empresariais -->
-          <div class="exec-module-card" data-action="proposals">
-            <div class="exec-module-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-              </svg>
-            </div>
-            <div class="exec-module-info">
-              <h4>Prospecções Empresariais</h4>
-              <p>Tabela e pipeline Kanban das 1.072 cotações empresariais cadastradas.</p>
-            </div>
-          </div>
-
-          <!-- 3: Carteira de Corretores -->
-          <div class="exec-module-card" data-action="brokers">
-            <div class="exec-module-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
-            </div>
-            <div class="exec-module-info">
-              <h4>Carteira de Corretores</h4>
-              <p>161 corretores credenciados e participação nas 3 posições comerciais.</p>
-            </div>
-          </div>
-
-          <!-- 4: Empresas Cadastradas -->
-          <div class="exec-module-card" data-action="companies">
-            <div class="exec-module-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="4" y="2" width="16" height="20" rx="2"></rect>
-                <line x1="9" y1="6" x2="9.01" y2="6"></line>
-                <line x1="15" y1="6" x2="15.01" y2="6"></line>
-                <line x1="9" y1="10" x2="9.01" y2="10"></line>
-                <line x1="15" y1="10" x2="15.01" y2="10"></line>
-                <line x1="9" y1="14" x2="9.01" y2="14"></line>
-                <line x1="15" y1="14" x2="15.01" y2="14"></line>
-                <path d="M9 22v-4h6v4"></path>
-              </svg>
-            </div>
-            <div class="exec-module-info">
-              <h4>Empresas Cadastradas</h4>
-              <p>535 empresas com histórico de propostas e vínculos comerciais.</p>
-            </div>
-          </div>
-
-          <!-- 5: Campanhas Comerciais -->
-          <div class="exec-module-card" data-action="campaigns">
-            <div class="exec-module-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 11 3 6v12l18-5v-2z"></path>
-                <path d="M12.4 16.8a3 3 0 1 0 5.8-1.6"></path>
-              </svg>
-            </div>
-            <div class="exec-module-info">
-              <h4>Campanhas Comerciais</h4>
-              <p>27 campanhas sazonais mapeadas por competência e planos de saúde.</p>
-            </div>
-          </div>
-
-          <!-- 6: Políticas de Agenciamento -->
-          <div class="exec-module-card" data-action="policies">
-            <div class="exec-module-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                <path d="m9 12 2 2 4-4"></path>
-              </svg>
-            </div>
-            <div class="exec-module-info">
-              <h4>Políticas de Agenciamento</h4>
-              <p>Parâmetros de comissão, parcelas e vitalício dos parceiros.</p>
-            </div>
-          </div>
-
-          <!-- 7: Políticas de Coparticipação -->
-          <div class="exec-module-card" data-action="policies">
-            <div class="exec-module-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <line x1="10" y1="9" x2="8" y2="9"></line>
-              </svg>
-            </div>
-            <div class="exec-module-info">
-              <h4>Políticas de Coparticipação</h4>
-              <p>Tabelas de coparticipação com preços fixados por evento e terapias.</p>
-            </div>
-          </div>
-
-          <!-- 8: Auditoria & Requisitos (Exclusivo Administrador Master) -->
-          ${isMasterAdmin() ? `
-          <div class="exec-module-card" data-action="audit">
-            <div class="exec-module-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-                <path d="m9 14 2 2 4-4"></path>
-              </svg>
-            </div>
-            <div class="exec-module-info">
-              <h4>Auditoria &amp; Requisitos</h4>
-              <p>Diagnóstico de qualidade de migração e matriz de 48 requisitos funcionais.</p>
-            </div>
-          </div>
-          ` : ''}
-
-          <!-- 9: Exportação de Dados -->
-          <div class="exec-module-card" data-action="export">
-            <div class="exec-module-icon">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-            </div>
-            <div class="exec-module-info">
-              <h4>Exportação de Dados</h4>
-              <p>Gere relatórios analíticos em CSV ou JSON da carteira completa.</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- 6. Tabela de Propostas Comerciais Recentes -->
+        <!-- 6. Tabela: Propostas Comerciais que Exigem Ação -->
         <div class="exec-card exec-table-card">
           <div class="exec-table-header">
             <div class="exec-table-title-box">
               <div style="display:flex; align-items:center; gap:0.6rem;">
-                <h3 class="exec-card-title">Propostas Comerciais Recentes</h3>
-                <button class="exec-badge-link" id="btn-view-all-proposals">Ver Todas (${totalCount.toLocaleString('pt-BR')}) →</button>
+                <h3 class="exec-card-title">Propostas que Exigem Ação</h3>
+                <span class="exec-badge-pill">${tableProposals.length} Selecionadas</span>
               </div>
-              <p class="exec-card-subtitle">Listagem nominal das últimas cotações e propostas submetidas ao comitê de aceitação.</p>
+              <p class="exec-card-subtitle">Foco operacional em cotações ativas prioritárias, fechamentos e causas de descontinuidade.</p>
             </div>
             <div class="exec-table-actions">
               <div class="exec-filter-tabs">
-                <button class="exec-filter-tab active" data-filter="all">Todas</button>
-                <button class="exec-filter-tab" data-filter="fechadas">Fechadas</button>
-                <button class="exec-filter-tab" data-filter="desistencias">Desistências</button>
+                <button class="exec-filter-tab ${tableTab === 'priority' ? 'active' : ''}" data-tab="priority" title="Propostas Quentes e Mornas em negociação">Prioridade (Quente / Morna)</button>
+                <button class="exec-filter-tab ${tableTab === 'revenue' ? 'active' : ''}" data-tab="revenue" title="Maiores valores em negociação">Maior Valor em Aberto</button>
+                <button class="exec-filter-tab ${tableTab === 'closed' ? 'active' : ''}" data-tab="closed" title="Contratos fechados recentemente">Últimas Fechadas</button>
+                <button class="exec-filter-tab ${tableTab === 'lost' ? 'active' : ''}" data-tab="lost" title="Desistências e declínios recentes">Perdas Recentes</button>
+                <button class="exec-filter-tab ${tableTab === 'all' ? 'active' : ''}" data-tab="all" title="Todas as propostas filtradas">Todas</button>
               </div>
-              <button class="exec-btn-export" id="btn-export-recent-list">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <button class="exec-btn-export" id="btn-export-dashboard-table">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="7 10 12 15 17 10"></polyline>
                   <line x1="12" y1="15" x2="12" y2="3"></line>
                 </svg>
-                <span>Exportar Lista</span>
+                <span>Exportar CSV</span>
               </button>
             </div>
           </div>
 
           <div class="exec-table-responsive">
-            <table class="exec-data-table" id="dashboard-recent-table">
+            <table class="exec-data-table" id="dashboard-action-table">
               <thead>
                 <tr>
                   <th>EMPRESA / RAZÃO SOCIAL</th>
                   <th>VIDAS</th>
-                  <th>FATURAMENTO</th>
+                  <th>FATURAMENTO PREVISTO</th>
                   <th>COMPETÊNCIA</th>
-                  <th>TEMPERATURA / STATUS</th>
+                  <th>STATUS / TEMPERATURA</th>
                   <th>CORRETOR TITULAR</th>
                   <th>AÇÕES</th>
                 </tr>
               </thead>
               <tbody>
-                ${renderDashboardTableRows(proposals)}
+                ${pageSlice.length > 0 ? pageSlice.map(renderActionableTableRow).join('') : '<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">Nenhuma proposta encontrada para esta categoria no período selecionado.</td></tr>'}
               </tbody>
             </table>
           </div>
 
           <div class="exec-table-footer">
             <div class="exec-table-info">
-              Mostrando <span id="table-showing-range">1 a 7</span> de <strong>${totalCount.toLocaleString('pt-BR')}</strong> propostas cadastradas
+              Mostrando <span id="table-showing-range">${pageSlice.length > 0 ? `${startIndex + 1} a ${startIndex + pageSlice.length}` : '0'}</span> de <strong>${tableProposals.length.toLocaleString('pt-BR')}</strong> propostas da categoria
             </div>
             <div class="exec-pagination">
-              <button class="exec-page-btn" disabled>Anterior</button>
-              <button class="exec-page-btn active">1</button>
-              <button class="exec-page-btn">2</button>
-              <button class="exec-page-btn">3</button>
-              <span class="exec-page-dots">...</span>
-              <button class="exec-page-btn">154</button>
-              <button class="exec-page-btn">Próxima</button>
+              <button class="exec-page-btn" id="btn-dashboard-prev-page" ${validPage <= 1 ? 'disabled' : ''}>Anterior</button>
+              <span class="exec-page-text" style="font-size:0.75rem; color:var(--text-secondary); padding:0 0.5rem;">Página ${validPage} de ${totalPages}</span>
+              <button class="exec-page-btn" id="btn-dashboard-next-page" ${validPage >= totalPages ? 'disabled' : ''}>Próxima</button>
             </div>
           </div>
         </div>
 
-        <!-- 7. Barra Inferior Institucional e Governança -->
+        <!-- 7. Seção: Navegação Operacional Compacta (9 Módulos do Sistema) -->
+        <div class="exec-compact-nav-section">
+          <div class="exec-compact-nav-header">
+            <span class="exec-compact-nav-title">MÓDULOS OPERACIONAIS SB SAÚDE</span>
+            <span class="exec-compact-nav-sub">Acesso direto às ferramentas integradas do sistema</span>
+          </div>
+          <div class="exec-compact-nav-grid">
+            <div class="exec-compact-nav-card" data-action="new-quote">
+              <span class="nav-icon">✨</span>
+              <span class="nav-name">Nova Cotação</span>
+            </div>
+            <div class="exec-compact-nav-card" data-action="proposals">
+              <span class="nav-icon">📋</span>
+              <span class="nav-name">Prospecções (${allProposals.length})</span>
+            </div>
+            <div class="exec-compact-nav-card" data-action="brokers">
+              <span class="nav-icon">🤝</span>
+              <span class="nav-name">Corretores</span>
+            </div>
+            <div class="exec-compact-nav-card" data-action="companies">
+              <span class="nav-icon">🏢</span>
+              <span class="nav-name">Empresas</span>
+            </div>
+            <div class="exec-compact-nav-card" data-action="campaigns">
+              <span class="nav-icon">🎯</span>
+              <span class="nav-name">Campanhas</span>
+            </div>
+            <div class="exec-compact-nav-card" data-action="policies">
+              <span class="nav-icon">📄</span>
+              <span class="nav-name">Agenciamento</span>
+            </div>
+            <div class="exec-compact-nav-card" data-action="policies">
+              <span class="nav-icon">🛡️</span>
+              <span class="nav-name">Coparticipação</span>
+            </div>
+            ${isMasterAdmin() ? `
+            <div class="exec-compact-nav-card" data-action="audit">
+              <span class="nav-icon">🔍</span>
+              <span class="nav-name">Auditoria &amp; Requisitos</span>
+            </div>
+            ` : ''}
+            <div class="exec-compact-nav-card" data-action="export">
+              <span class="nav-icon">📥</span>
+              <span class="nav-name">Exportar Base</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. Barra Inferior Institucional e Governança -->
         <footer class="exec-bottom-bar">
           <div class="exec-bottom-left">
-            SB Saúde Corporativa • Módulo de Inteligência Comercial e Aceitação v4.8
+            SB Saúde Corporativa • Módulo de Inteligência Comercial e Aceitação v4.9
           </div>
           <div class="exec-bottom-right">
             <span class="exec-status-service">
-              <span class="exec-service-dot"></span> Todos os microsserviços operando normalmente
+              <span class="exec-service-dot"></span> Microsserviços e Banco Supabase Operacionais
             </span>
             ${isMasterAdmin() ? '<a class="exec-footer-link" id="link-central-requisitos">Central de Requisitos</a>' : ''}
             <a class="exec-footer-link" id="link-governanca-lgpd">Políticas e Governança LGPD</a>
@@ -1348,61 +1807,34 @@
               <button class="drilldown-close" id="drilldown-modal-close" title="Fechar">✕</button>
             </div>
             <div class="drilldown-body" id="drilldown-modal-body">
-              <!-- conteúdo dinâmico -->
+              <!-- Conteúdo dinâmico -->
             </div>
           </div>
         </div>
       </div>
     `;
 
-    // Renderiza o gráfico interativo Chart.js
-    renderMainChart(proposals);
+    // Renderiza os 3 Gráficos Chart.js
+    renderEvolutionChart(filteredProposals, insightsScope);
+    renderPipelineChart(destinations);
+    renderLossOpportunityChart(filteredProposals, destinations);
 
-    // Eventos do seletor de métrica do gráfico
-    const metricSelect = container.querySelector('#chart-metric-select');
-    if (metricSelect) {
-      metricSelect.addEventListener('change', (e) => {
-        dashboardState.mainMetric = e.target.value;
-        renderMainChart(proposals);
-      });
+    // =========================================================================
+    // EVENT LISTENERS DO DASHBOARD
+    // =========================================================================
+
+    // 1. Nova Cotação no Header
+    const btnNewQuoteHeader = container.querySelector('#btn-dashboard-new-quote');
+    if (btnNewQuoteHeader) {
+      btnNewQuoteHeader.addEventListener('click', openNewQuoteModal);
     }
 
-    // Eventos de troca de tipo de gráfico (Barras / Linhas)
-    container.querySelectorAll('.exec-toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        container.querySelectorAll('.exec-toggle-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        dashboardState.chartType = btn.dataset.type;
-        renderMainChart(proposals);
-      });
-    });
-
-    // Eventos de clique nos 6 KPIs Executivos (Drill-Down)
-    container.querySelectorAll('.exec-kpi-card.interactive').forEach(card => {
-      card.addEventListener('click', () => {
-        openKpiDrillDown(card.dataset.kpi, proposals);
-      });
-    });
-
-    // Eventos de clique no funil interativo
-    container.querySelectorAll('.exec-funnel-row.interactive').forEach(item => {
-      item.addEventListener('click', () => {
-        const temp = item.dataset.temp;
-        openFunnelDrillDown(temp, proposals);
-      });
-    });
-
-    // Eventos dos Controles de Insights Estratégicos
-    const periodSelect = container.querySelector('#insights-period-select');
-    const customDatesEl = container.querySelector('#insights-custom-dates');
-    const dateFieldSelect = container.querySelector('#insights-date-field');
-    const dateFromInput = container.querySelector('#insights-date-from');
-    const dateToInput = container.querySelector('#insights-date-to');
-    const btnRefreshInsights = container.querySelector('#btn-refresh-insights');
-
+    // 2. Filtro de Período
+    const periodSelect = container.querySelector('#dashboard-period-select');
+    const customDatesEl = container.querySelector('#dashboard-custom-dates');
     if (periodSelect) {
       periodSelect.addEventListener('change', () => {
-        dashboardState.insightsPeriod = periodSelect.value;
+        dashboardState.period = periodSelect.value;
         if (customDatesEl) {
           customDatesEl.style.display = periodSelect.value === 'custom' ? 'flex' : 'none';
         }
@@ -1412,73 +1844,199 @@
       });
     }
 
-    if (dateFieldSelect) {
-      dateFieldSelect.addEventListener('change', () => {
-        dashboardState.insightsDateField = dateFieldSelect.value;
-        renderDashboard(container);
-      });
-    }
-
+    // Datas personalizadas
+    const dateFromInput = container.querySelector('#dashboard-date-from');
     if (dateFromInput) {
       dateFromInput.addEventListener('change', () => {
-        dashboardState.insightsDateFrom = dateFromInput.value;
+        dashboardState.dateFrom = dateFromInput.value;
         renderDashboard(container);
       });
     }
 
+    const dateToInput = container.querySelector('#dashboard-date-to');
     if (dateToInput) {
       dateToInput.addEventListener('change', () => {
-        dashboardState.insightsDateTo = dateToInput.value;
+        dashboardState.dateTo = dateToInput.value;
         renderDashboard(container);
       });
     }
 
-    if (btnRefreshInsights) {
-      btnRefreshInsights.addEventListener('click', () => {
-        btnRefreshInsights.classList.add('spinning');
+    // Base Temporal (Prospecção vs Competência)
+    const dateFieldSelect = container.querySelector('#dashboard-date-field');
+    if (dateFieldSelect) {
+      dateFieldSelect.addEventListener('change', () => {
+        dashboardState.dateField = dateFieldSelect.value;
+        renderDashboard(container);
+      });
+    }
+
+    // Botão Atualizar Sincronização
+    const btnRefresh = container.querySelector('#btn-dashboard-refresh');
+    if (btnRefresh) {
+      btnRefresh.addEventListener('click', () => {
+        btnRefresh.classList.add('spinning');
+        btnRefresh.disabled = true;
         if (window.crmSupabase && window.crmSupabase.isConnected && typeof window.crmSupabase.fetchProposals === 'function') {
           window.crmSupabase.fetchProposals().then(res => {
             if (res && res.data && res.data.length > 0) {
               appData.proposals = res.data;
               saveDataStore();
-              dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
-              showToast('Dados reconciliados com o Supabase com sucesso!', 'success');
+              dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+              showToast('Dados reconciliados com sucesso!', 'success');
               renderDashboard(container);
             }
           }).catch(err => {
-            showToast('Erro ao atualizar dados: ' + (err.message || err), 'error');
+            showToast('Erro ao sincronizar: ' + (err.message || err), 'error');
           }).finally(() => {
-            btnRefreshInsights.classList.remove('spinning');
+            btnRefresh.classList.remove('spinning');
+            btnRefresh.disabled = false;
           });
         } else {
-          dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR');
+          dashboardState.lastSyncTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
           showToast('Dados atualizados.', 'info');
           renderDashboard(container);
-          btnRefreshInsights.classList.remove('spinning');
+          btnRefresh.classList.remove('spinning');
+          btnRefresh.disabled = false;
         }
       });
     }
 
-    // Eventos de clique nos Cartões de Insights Estratégicos (Drilldown)
-    container.querySelectorAll('.exec-insight-card.interactive').forEach(card => {
+    // 3. Cliques nos KPIs (Drill-Down)
+    container.querySelectorAll('.exec-kpi-card.interactive').forEach(card => {
       card.addEventListener('click', () => {
-        const insightKey = card.dataset.insight;
-        openInsightsDrillDown(insightKey, proposals, insights);
+        const kpi = card.dataset.kpi;
+        openKpiDrillDown(kpi, filteredProposals, destinations, insights);
       });
     });
 
-    // Modal close listeners
-    const modalCloseBtn = container.querySelector('#drilldown-modal-close');
-    const modalOverlay = container.querySelector('#drilldown-modal-overlay');
-    if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeDrillDownModal);
-    if (modalOverlay) {
-      modalOverlay.addEventListener('click', (e) => {
-        if (e.target === modalOverlay) closeDrillDownModal();
+    // Expansor de descrição nos Insights Priorizados ("Ver mais / Ver menos")
+    container.querySelectorAll('.exec-insight-expand-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wrap = btn.closest('.exec-insight-desc-wrap');
+        if (wrap) {
+          const isExpanded = wrap.classList.toggle('expanded');
+          btn.textContent = isExpanded ? 'Ver menos' : 'Ver mais';
+        }
+      });
+    });
+
+    // 4. Cliques nos Insights Priorizados
+    container.querySelectorAll('.exec-insight-card.interactive').forEach(card => {
+      card.addEventListener('click', () => {
+        const action = card.dataset.insightAction;
+        const target = card.dataset.insightTarget;
+        if (action === 'proposal_drawer' && target) {
+          openProposalDrawer(target);
+        } else if (action === 'drilldown_in_progress') {
+          openKpiDrillDown('in_progress', filteredProposals, destinations, insights);
+        } else if (action === 'drilldown_lost') {
+          openKpiDrillDown('lost', filteredProposals, destinations, insights);
+        } else if (action === 'drilldown_broker' && target) {
+          openBrokerDrillDown(target, filteredProposals);
+        } else if (action === 'drilldown_uf' && target) {
+          openUfDrillDown(target, filteredProposals);
+        }
+      });
+    });
+
+    // 5. Cliques nos Destinos do Pipeline
+    container.querySelectorAll('.exec-destination-col.interactive').forEach(col => {
+      col.addEventListener('click', (e) => {
+        const sub = e.target.closest('.exec-subitem');
+        if (sub && sub.dataset.stage) {
+          e.stopPropagation();
+          openStageDrillDown(sub.dataset.stage, filteredProposals);
+        } else {
+          const dest = col.dataset.dest;
+          openKpiDrillDown(dest, filteredProposals, destinations, insights);
+        }
+      });
+    });
+
+    // 6. Controles de Gráficos
+    const selEvolMetric = container.querySelector('#select-evolution-metric');
+    if (selEvolMetric) {
+      selEvolMetric.addEventListener('change', () => {
+        dashboardState.evolutionMetric = selEvolMetric.value;
+        renderEvolutionChart(filteredProposals, insightsScope);
       });
     }
 
-    // Eventos de Módulos Operacionais
-    container.querySelectorAll('.exec-module-card').forEach(card => {
+    container.querySelectorAll('.exec-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.exec-toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        dashboardState.evolutionChartType = btn.dataset.type;
+        renderEvolutionChart(filteredProposals, insightsScope);
+      });
+    });
+
+    const selPipeMetric = container.querySelector('#select-pipeline-metric');
+    if (selPipeMetric) {
+      selPipeMetric.addEventListener('change', () => {
+        dashboardState.pipelineMetric = selPipeMetric.value;
+        renderPipelineChart(destinations);
+      });
+    }
+
+    const selLossTab = container.querySelector('#select-loss-tab');
+    if (selLossTab) {
+      selLossTab.addEventListener('change', () => {
+        dashboardState.lossTab = selLossTab.value;
+        renderLossOpportunityChart(filteredProposals, destinations);
+      });
+    }
+
+    // 7. Abas da Tabela de Ação
+    container.querySelectorAll('.exec-filter-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        dashboardState.tableTab = tab.dataset.tab;
+        dashboardState.tablePage = 1;
+        renderDashboard(container);
+      });
+    });
+
+    // Paginação da Tabela de Ação
+    const btnPrevPage = container.querySelector('#btn-dashboard-prev-page');
+    if (btnPrevPage) {
+      btnPrevPage.addEventListener('click', () => {
+        if (dashboardState.tablePage > 1) {
+          dashboardState.tablePage--;
+          renderDashboard(container);
+        }
+      });
+    }
+
+    const btnNextPage = container.querySelector('#btn-dashboard-next-page');
+    if (btnNextPage) {
+      btnNextPage.addEventListener('click', () => {
+        if (dashboardState.tablePage < totalPages) {
+          dashboardState.tablePage++;
+          renderDashboard(container);
+        }
+      });
+    }
+
+    // Exportar Tabela
+    const btnExport = container.querySelector('#btn-export-dashboard-table');
+    if (btnExport) {
+      btnExport.addEventListener('click', () => exportDataCSV());
+    }
+
+    // Cliques nas linhas da tabela de ação
+    container.querySelectorAll('#dashboard-action-table .exec-table-row').forEach(row => {
+      row.addEventListener('click', () => openProposalDrawer(row.dataset.id));
+    });
+    container.querySelectorAll('#dashboard-action-table .btn-open-detail').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openProposalDrawer(btn.dataset.id);
+      });
+    });
+
+    // 8. Navegação Operacional Compacta
+    container.querySelectorAll('.exec-compact-nav-card').forEach(card => {
       card.addEventListener('click', () => {
         const action = card.dataset.action;
         if (action === 'new-quote') {
@@ -1486,7 +2044,7 @@
         } else if (action === 'export') {
           exportDataCSV();
         } else if (action === 'audit' && !isMasterAdmin()) {
-          showToast('Acesso restrito: A tela de Auditoria & Requisitos é visível apenas para usuários com perfil Administrador Master.', 'warning');
+          showToast('Acesso restrito a Administrador Master.', 'warning');
         } else {
           state.currentTab = action;
           renderView();
@@ -1494,65 +2052,12 @@
       });
     });
 
-    // Filtros rápidos da tabela de propostas recentes
-    let currentTableFilter = 'all';
-    function updateRecentTable() {
-      let filtered = proposals;
-      if (currentTableFilter === 'fechadas') {
-        filtered = proposals.filter(p => (p.TEMPERATURA_CONTRATO || '').toLowerCase().includes('fechado'));
-      } else if (currentTableFilter === 'desistencias') {
-        filtered = proposals.filter(p => (p.TEMPERATURA_CONTRATO || '').toLowerCase().includes('desist'));
-      }
-      const tbody = container.querySelector('#dashboard-recent-table tbody');
-      if (tbody) {
-        tbody.innerHTML = renderDashboardTableRows(filtered);
-        tbody.querySelectorAll('.exec-table-row').forEach(row => {
-          row.addEventListener('click', () => openProposalDrawer(row.dataset.id));
-        });
-        tbody.querySelectorAll('.btn-open-detail').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openProposalDrawer(btn.dataset.id);
-          });
-        });
-      }
-      const showingRange = container.querySelector('#table-showing-range');
-      if (showingRange) {
-        const count = Math.min(7, filtered.length);
-        showingRange.textContent = count > 0 ? `1 a ${count}` : '0';
-      }
-    }
-
-    container.querySelectorAll('.exec-filter-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        container.querySelectorAll('.exec-filter-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        currentTableFilter = tab.dataset.filter;
-        updateRecentTable();
-      });
-    });
-
-    // Exportação da lista recente
-    const btnExportList = container.querySelector('#btn-export-recent-list');
-    if (btnExportList) {
-      btnExportList.addEventListener('click', () => exportDataCSV());
-    }
-
-    // Botão Ver Todas as Propostas
-    const btnViewAll = container.querySelector('#btn-view-all-proposals');
-    if (btnViewAll) {
-      btnViewAll.addEventListener('click', () => {
-        state.currentTab = 'proposals';
-        renderView();
-      });
-    }
-
     // Links de rodapé
     const linkAudit = container.querySelector('#link-central-requisitos');
     if (linkAudit) {
       linkAudit.addEventListener('click', () => {
         if (!isMasterAdmin()) {
-          showToast('Acesso restrito: A tela de Auditoria & Requisitos é visível apenas para usuários com perfil Administrador Master.', 'warning');
+          showToast('Acesso restrito a Administrador Master.', 'warning');
           return;
         }
         state.currentTab = 'audit';
@@ -1568,222 +2073,17 @@
       });
     }
 
-    // Clicks nos detalhes das linhas da tabela
-    container.querySelectorAll('.btn-open-detail').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openProposalDrawer(btn.dataset.id);
+    // Modal Close
+    const modalClose = container.querySelector('#drilldown-modal-close');
+    const modalOverlay = container.querySelector('#drilldown-modal-overlay');
+    if (modalClose) modalClose.addEventListener('click', closeDrillDownModal);
+    if (modalOverlay) {
+      modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) closeDrillDownModal();
       });
-    });
-
-    container.querySelectorAll('.exec-table-row').forEach(tr => {
-      tr.addEventListener('click', () => {
-        openProposalDrawer(tr.dataset.id);
-      });
-    });
-  }
-
-  // Cálculo de Insights Estratégicos Fatuais e Auditáveis
-  function calculateStrategicInsights(proposals, scope = {}) {
-    if (window.StrategicInsights && typeof window.StrategicInsights.calculateFactualStrategicInsights === 'function') {
-      return window.StrategicInsights.calculateFactualStrategicInsights(proposals, scope);
     }
-    return {
-      scope: { period: 'all', periodLabel: 'Todo o histórico', totalUniverse: proposals.length, filteredUniverse: proposals.length },
-      topBroker: { name: 'Sem dados', count: 0, closedCount: 0, proposals: [] },
-      biggestProposal: { company: 'Sem dados', livesFormatted: '0 vidas', revenueFormatted: 'R$ 0,00', status: '-', id: null },
-      topUf: { label: 'Sem dados', count: 0, livesFormatted: '0 vidas', proposals: [] },
-      closedProposals: { formattedRevenue: 'R$ 0,00', closedCount: 0, totalUniverse: proposals.length, closureRate: '0.0', proposals: [] }
-    };
-  }
-
-  // Motor de Gráficos Profissionais Chart.js
-  function renderMainChart(proposals) {
-    const canvas = document.getElementById('mainDashboardChart');
-    if (!canvas || typeof Chart === 'undefined') return;
-
-    if (mainChartInstance) {
-      mainChartInstance.destroy();
-      mainChartInstance = null;
-    }
-
-    const metric = dashboardState.mainMetric;
-    const chartType = dashboardState.chartType;
-
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const textColor = isDark ? '#94a3b8' : '#64748b';
-    const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : '#f1f5f9';
-    const tooltipBg = isDark ? '#1e293b' : '#0f172a';
-    const tooltipBorder = isDark ? '#334155' : '#0f172a';
-
-    let chartData = { labels: [], datasets: [] };
-    let chartOptions = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: chartType === 'doughnut' || chartType === 'polarArea',
-          position: 'right',
-          labels: {
-            boxWidth: 12,
-            font: { family: 'Inter', size: 11 },
-            color: isDark ? '#cbd5e1' : '#475569'
-          }
-        },
-        tooltip: {
-          padding: 10,
-          backgroundColor: tooltipBg,
-          borderColor: tooltipBorder,
-          borderWidth: isDark ? 1 : 0,
-          titleColor: '#ffffff',
-          bodyColor: isDark ? '#cbd5e1' : '#f8fafc',
-          titleFont: { family: 'Plus Jakarta Sans', weight: 'bold' },
-          bodyFont: { family: 'Inter' }
-        }
-      },
-      scales: (chartType === 'bar' || chartType === 'line') ? {
-        x: {
-          grid: { display: false },
-          ticks: {
-            font: { family: 'Inter', size: 10 },
-            color: textColor
-          }
-        },
-        y: {
-          grid: { color: gridColor },
-          ticks: {
-            font: { family: 'Inter', size: 10 },
-            color: textColor,
-            callback: (v) => {
-              if (metric.includes('revenue')) return 'R$ ' + (v >= 1000000 ? (v/1000000).toFixed(1) + 'M' : (v/1000).toFixed(0) + 'k');
-              return v;
-            }
-          }
-        }
-      } : {}
-    };
-
-    const colors = ['#dc2626', '#b91c1c', '#0284c7', isDark ? '#94a3b8' : '#0f172a', '#16a34a', '#d97706', '#ea580c', '#8b5cf6', '#ec4899', '#64748b'];
-
-    if (metric === 'revenue_by_competence') {
-      const compRevenue = {};
-      proposals.forEach(p => {
-        const c = p.COMPETENCIA || '01/01/2024';
-        compRevenue[c] = (compRevenue[c] || 0) + BusinessRules.parseCurrency(p.FATURAMENTO);
-      });
-      const sortedComps = Object.keys(compRevenue).sort((a,b) => {
-        const [d1,m1,y1] = a.split('/').map(Number);
-        const [d2,m2,y2] = b.split('/').map(Number);
-        return new Date(y1,m1-1,d1) - new Date(y2,m2-1,d2);
-      });
-
-      chartData.labels = sortedComps.slice(-10);
-      chartData.datasets = [{
-        label: 'Faturamento Bruto Projetado (R$)',
-        data: sortedComps.slice(-10).map(c => compRevenue[c]),
-        backgroundColor: chartType === 'line' ? 'rgba(190, 18, 60, 0.12)' : '#be123c',
-        hoverBackgroundColor: '#9f1239',
-        borderColor: '#be123c',
-        borderWidth: chartType === 'line' ? 2 : 0,
-        fill: chartType === 'line',
-        tension: 0.35,
-        borderRadius: chartType === 'bar' ? 4 : 0,
-        maxBarThickness: 34
-      }];
-    } else if (metric === 'pipeline_temperatures') {
-      const temps = {
-        'Contrato Fechado': 0,
-        'Quente': 0,
-        'Morna': 0,
-        'Iniciada': 0,
-        'Fria': 0,
-        'Desistência da Empresa': 0,
-        'Declinado pela SB Saúde': 0
-      };
-      proposals.forEach(p => {
-        const t = p.TEMPERATURA_CONTRATO || 'Iniciada';
-        if (temps[t] !== undefined) temps[t]++;
-        else if (t.includes('Desist')) temps['Desistência da Empresa']++;
-        else temps['Iniciada']++;
-      });
-      chartData.labels = Object.keys(temps);
-      chartData.datasets = [{
-        label: 'Propostas por Estágio',
-        data: Object.values(temps),
-        backgroundColor: ['#16a34a', '#ea580c', '#d97706', '#0284c7', '#64748b', '#94a3b8', '#dc2626'],
-        borderWidth: 1,
-        borderRadius: chartType === 'bar' ? 6 : 0
-      }];
-    } else if (metric === 'top_brokers') {
-      const brokerCounts = {};
-      proposals.forEach(p => {
-        const b = p.CORRETORES_1 || 'Direto';
-        brokerCounts[b] = (brokerCounts[b] || 0) + 1;
-      });
-      const top = Object.entries(brokerCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
-      chartData.labels = top.map(t => t[0]);
-      chartData.datasets = [{
-        label: 'Propostas por Corretor',
-        data: top.map(t => t[1]),
-        backgroundColor: colors,
-        borderWidth: 1,
-        borderRadius: chartType === 'bar' ? 6 : 0
-      }];
-    } else if (metric === 'geo_uf') {
-      const ufs = {};
-      proposals.forEach(p => {
-        const uf = p.UF || 'SP';
-        ufs[uf] = (ufs[uf] || 0) + 1;
-      });
-      const topUfs = Object.entries(ufs).sort((a,b) => b[1] - a[1]).slice(0, 8);
-      chartData.labels = topUfs.map(u => u[0]);
-      chartData.datasets = [{
-        label: 'Propostas por UF',
-        data: topUfs.map(u => u[1]),
-        backgroundColor: colors,
-        borderWidth: 1,
-        borderRadius: chartType === 'bar' ? 6 : 0
-      }];
-    } else if (metric === 'campaigns_performance') {
-      const camps = {};
-      proposals.forEach(p => {
-        const c = p.PLANO_CAMPANHA || 'Geral';
-        camps[c] = (camps[c] || 0) + 1;
-      });
-      const topCamps = Object.entries(camps).sort((a,b) => b[1] - a[1]).slice(0, 8);
-      chartData.labels = topCamps.map(c => c[0].replace('Campanha de ', '').replace('Campanha ', ''));
-      chartData.datasets = [{
-        label: 'Propostas por Campanha',
-        data: topCamps.map(c => c[1]),
-        backgroundColor: colors,
-        borderWidth: 1,
-        borderRadius: chartType === 'bar' ? 6 : 0
-      }];
-    } else if (metric === 'plans_accommodation') {
-      const acoms = { 'Enfermaria': 0, 'Apartamento': 0, 'Ambulatorial': 0 };
-      proposals.forEach(p => {
-        const a = p.ACOMODACAO || 'Enfermaria';
-        if (acoms[a] !== undefined) acoms[a]++;
-        else acoms['Enfermaria']++;
-      });
-      chartData.labels = Object.keys(acoms);
-      chartData.datasets = [{
-        label: 'Propostas por Acomodação',
-        data: Object.values(acoms),
-        backgroundColor: ['#dc2626', '#0284c7', '#16a34a'],
-        borderWidth: 1,
-        borderRadius: chartType === 'bar' ? 6 : 0
-      }];
-    }
-
-    try {
-      mainChartInstance = new Chart(canvas, {
-        type: chartType,
-        data: chartData,
-        options: chartOptions
-      });
-    } catch (e) {
-      console.error('Erro ao renderizar Chart.js:', e);
+    } catch (dashboardErr) {
+      console.error('[renderDashboard Error]:', dashboardErr);
     }
   }
 
@@ -1796,63 +2096,100 @@
     }
   }
 
-  // Drilldown ao Clicar em Qualquer KPI
-  function openKpiDrillDown(kpiKey, proposals) {
+  // Drilldown Genérico para KPIs e Destinos
+  function openKpiDrillDown(kpiKey, proposals, destinations, insights) {
+    let title = '';
+    let desc = '';
+    let list = [];
+
+    if (kpiKey === 'closed') {
+      title = 'Contratos Comerciais Fechados';
+      desc = 'Propostas convertidas com sucesso em novos contratos no período';
+      list = destinations.closed.proposals;
+    } else if (kpiKey === 'closed_lives') {
+      title = 'Vidas Aceitas em Contratos Fechados';
+      desc = 'Beneficiários aceitos ordenados por volume de vidas';
+      list = [...destinations.closed.proposals].sort((a,b) => BusinessRules.parseLives(b.VIDAS) - BusinessRules.parseLives(a.VIDAS));
+    } else if (kpiKey === 'closed_revenue') {
+      title = 'Faturamento Previsto de Contratos Fechados';
+      desc = 'Soma do faturamento mensal cotado de aceitação comercial (não caixa liquidado)';
+      list = [...destinations.closed.proposals].sort((a,b) => BusinessRules.parseCurrency(b.FATURAMENTO) - BusinessRules.parseCurrency(a.FATURAMENTO));
+    } else if (kpiKey === 'conversion') {
+      title = 'Taxa de Conversão Comercial';
+      desc = `${destinations.closed.count} fechadas sobre o total de ${proposals.length} propostas no período (${destinations.closed.pct}%)`;
+      list = destinations.closed.proposals;
+    } else if (kpiKey === 'in_progress') {
+      title = 'Pipeline Ativo em Negociação (Em Andamento)';
+      desc = 'Oportunidades nos estágios Iniciada, Fria, Morna e Quente';
+      list = destinations.inProgress.proposals;
+    } else if (kpiKey === 'lost') {
+      title = 'Propostas Perdidas (Desistências & Declínios)';
+      desc = 'Casos que não avançaram no ciclo de aceitação comercial ou descontinuados';
+      list = destinations.lost.proposals;
+    } else {
+      title = 'Detalhamento de Propostas';
+      desc = 'Listagem detalhada das cotações correspondentes';
+      list = proposals;
+    }
+
+    renderDrillDownModalContent(title, desc, list);
+  }
+
+  // Drilldown por Estágio Específico
+  function openStageDrillDown(stageName, proposals) {
+    const list = proposals.filter(p => {
+      const t = p.TEMPERATURA_CONTRATO || 'Iniciada';
+      if (stageName === 'Desistência da Empresa') return t.includes('Desist');
+      if (stageName === 'Declinado pela SB Saúde') return t.includes('Declin');
+      return t === stageName;
+    });
+    renderDrillDownModalContent(`Estágio: ${stageName}`, `${list.length} cotações classificadas com este status comercial`, list);
+  }
+
+  // Drilldown por Corretor
+  function openBrokerDrillDown(brokerName, proposals) {
+    const list = proposals.filter(p => {
+      const brokers = (window.StrategicInsights && window.StrategicInsights.extractBrokersFromProposal)
+        ? window.StrategicInsights.extractBrokersFromProposal(p, { includeViaCadastro: true })
+        : [p.CORRETORES_1];
+      return brokers.includes(brokerName);
+    });
+    renderDrillDownModalContent(`Corretor: ${brokerName}`, `${list.length} propostas vinculadas a ${brokerName}`, list);
+  }
+
+  // Drilldown por UF
+  function openUfDrillDown(uf, proposals) {
+    const list = proposals.filter(p => {
+      const ufs = (window.StrategicInsights && window.StrategicInsights.extractUfsFromProposal)
+        ? window.StrategicInsights.extractUfsFromProposal(p)
+        : [p.UF];
+      return ufs.includes(uf);
+    });
+    renderDrillDownModalContent(`Estado: ${uf}`, `${list.length} propostas com abrangência no estado de ${uf}`, list);
+  }
+
+  // Renderiza conteúdo dentro do Modal Drilldown
+  function renderDrillDownModalContent(title, desc, list) {
     const overlay = document.getElementById('drilldown-modal-overlay');
     const titleEl = document.getElementById('drilldown-modal-title');
     const descEl = document.getElementById('drilldown-modal-desc');
     const bodyEl = document.getElementById('drilldown-modal-body');
     if (!overlay || !bodyEl) return;
 
-    let title = '';
-    let desc = '';
-    let filteredList = proposals;
-
-    if (kpiKey === 'volume') {
-      title = 'Detalhamento do Volume de Propostas';
-      desc = `Análise abrangente de todas as ${proposals.length} propostas do período`;
-      filteredList = proposals;
-    } else if (kpiKey === 'lives') {
-      title = 'Detalhamento de Vidas em Cotação';
-      desc = 'Propostas ordenadas por número de vidas seguradas';
-      filteredList = [...proposals].sort((a,b) => BusinessRules.parseLives(b.VIDAS) - BusinessRules.parseLives(a.VIDAS));
-    } else if (kpiKey === 'revenue') {
-      title = 'Ranking de Faturamento em Negociação';
-      desc = 'Maiores valores monetários cotados em carteira';
-      filteredList = [...proposals].sort((a,b) => BusinessRules.parseCurrency(b.FATURAMENTO) - BusinessRules.parseCurrency(a.FATURAMENTO));
-    } else if (kpiKey === 'conversion') {
-      title = 'Contratos Comerciais Fechados';
-      desc = 'Cotações convertidas com sucesso em novos contratos SB Saúde';
-      filteredList = proposals.filter(p => (p.TEMPERATURA_CONTRATO || '').includes('Fechado'));
-    } else if (kpiKey === 'tkm') {
-      title = 'Análise de Ticket Médio (TKM)';
-      desc = 'Distribuição de TKM por proposta e beneficiários';
-      filteredList = [...proposals].sort((a,b) => BusinessRules.parseCurrency(b.TKM) - BusinessRules.parseCurrency(a.TKM));
-    } else if (kpiKey === 'declines') {
-      title = 'Diagnóstico de Declínios e Desistências';
-      desc = 'Casos que não avançaram no ciclo de contratação';
-      filteredList = proposals.filter(p => {
-        const t = (p.TEMPERATURA_CONTRATO || '').toLowerCase();
-        return t.includes('declin') || t.includes('desist');
-      });
-    }
-
-    titleEl.textContent = title;
-    descEl.textContent = desc;
-
-    // Métricas rápidas da seleção
-    const count = filteredList.length;
     let sumLives = 0;
     let sumRev = 0;
-    filteredList.forEach(p => {
+    list.forEach(p => {
       sumLives += BusinessRules.parseLives(p.VIDAS);
       sumRev += BusinessRules.parseCurrency(p.FATURAMENTO);
     });
 
+    titleEl.textContent = title;
+    descEl.textContent = desc;
+
     bodyEl.innerHTML = `
       <div class="drilldown-kpis">
         <div class="drilldown-kpi-card">
-          <span class="drilldown-kpi-val">${count.toLocaleString('pt-BR')}</span>
+          <span class="drilldown-kpi-val">${list.length.toLocaleString('pt-BR')}</span>
           <span class="drilldown-kpi-label">Propostas Filtradas</span>
         </div>
         <div class="drilldown-kpi-card">
@@ -1861,200 +2198,14 @@
         </div>
         <div class="drilldown-kpi-card">
           <span class="drilldown-kpi-val" style="color:var(--success);">${BusinessRules.formatCurrency(sumRev)}</span>
-          <span class="drilldown-kpi-label">Faturamento Total</span>
+          <span class="drilldown-kpi-label">Faturamento Previsto</span>
         </div>
       </div>
 
-      <div class="table-container" style="max-height: 420px; overflow-y: auto;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Empresa</th>
-              <th>UF</th>
-              <th>Vidas</th>
-              <th>TKM</th>
-              <th>Faturamento</th>
-              <th>Competência</th>
-              <th>Temperatura</th>
-              <th>Corretor</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filteredList.slice(0, 50).map(p => `
-              <tr style="cursor:pointer;" onclick="openProposalDrawer('${p.ID}')">
-                <td><span class="code-tag">#PRP-${p.ID}</span></td>
-                <td><strong>${p.EMPRESA || 'Empresa Não Informada'}</strong></td>
-                <td>${p.UF || '-'}</td>
-                <td class="tnum">${p.VIDAS || '0'}</td>
-                <td class="tnum">${p.TKM || '-'}</td>
-                <td class="tnum font-bold">${p.FATURAMENTO || 'R$ 0,00'}</td>
-                <td>${p.COMPETENCIA || '-'}</td>
-                <td><span class="temp-badge ${getBadgeClass(p.TEMPERATURA_CONTRATO)}">${p.TEMPERATURA_CONTRATO || 'Iniciada'}</span></td>
-                <td>${p.CORRETORES_1 || 'Direto'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-      ${count > 50 ? `<div style="text-align:center;font-size:0.75rem;color:var(--text-muted);">Exibindo as primeiras 50 de ${count} propostas.</div>` : ''}
-    `;
-
-    overlay.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-  }
-
-  // Drilldown ao Clicar no Funil
-  function openFunnelDrillDown(temperatureName, proposals) {
-    const filtered = proposals.filter(p => {
-      const t = p.TEMPERATURA_CONTRATO || 'Iniciada';
-      if (temperatureName.includes('Desist')) return t.includes('Desist');
-      return t === temperatureName;
-    });
-
-    const overlay = document.getElementById('drilldown-modal-overlay');
-    const titleEl = document.getElementById('drilldown-modal-title');
-    const descEl = document.getElementById('drilldown-modal-desc');
-    const bodyEl = document.getElementById('drilldown-modal-body');
-    if (!overlay || !bodyEl) return;
-
-    titleEl.textContent = `Propostas no Estágio: ${temperatureName}`;
-    descEl.textContent = `${filtered.length} cotações classificadas com esta temperatura comercial`;
-
-    let sumLives = 0;
-    let sumRev = 0;
-    filtered.forEach(p => {
-      sumLives += BusinessRules.parseLives(p.VIDAS);
-      sumRev += BusinessRules.parseCurrency(p.FATURAMENTO);
-    });
-
-    bodyEl.innerHTML = `
-      <div class="drilldown-kpis">
-        <div class="drilldown-kpi-card">
-          <span class="drilldown-kpi-val">${filtered.length}</span>
-          <span class="drilldown-kpi-label">Propostas no Estágio</span>
-        </div>
-        <div class="drilldown-kpi-card">
-          <span class="drilldown-kpi-val">${sumLives.toLocaleString('pt-BR')}</span>
-          <span class="drilldown-kpi-label">Vidas Mapeadas</span>
-        </div>
-        <div class="drilldown-kpi-card">
-          <span class="drilldown-kpi-val" style="color:var(--success);">${BusinessRules.formatCurrency(sumRev)}</span>
-          <span class="drilldown-kpi-label">Faturamento Total</span>
-        </div>
-      </div>
-
-      <div class="table-container" style="max-height: 420px; overflow-y: auto;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Empresa</th>
-              <th>UF</th>
-              <th>Vidas</th>
-              <th>TKM</th>
-              <th>Faturamento</th>
-              <th>Competência</th>
-              <th>Corretor</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filtered.map(p => `
-              <tr style="cursor:pointer;" onclick="openProposalDrawer('${p.ID}')">
-                <td><span class="code-tag">#PRP-${p.ID}</span></td>
-                <td><strong>${p.EMPRESA || 'Empresa Não Informada'}</strong></td>
-                <td>${p.UF || '-'}</td>
-                <td class="tnum">${p.VIDAS || '0'}</td>
-                <td class="tnum">${p.TKM || '-'}</td>
-                <td class="tnum font-bold">${p.FATURAMENTO || 'R$ 0,00'}</td>
-                <td>${p.COMPETENCIA || '-'}</td>
-                <td>${p.CORRETORES_1 || 'Direto'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-
-    overlay.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-  }
-
-  // Drilldown ao Clicar nos Cartões de Insights Estratégicos
-  function openInsightsDrillDown(insightKey, proposals, insights) {
-    if (insightKey === 'biggest-deal') {
-      if (insights && insights.biggestProposal && insights.biggestProposal.id) {
-        openProposalDrawer(insights.biggestProposal.id);
-      } else {
-        showToast('Nenhuma proposta encontrada no período.', 'info');
-      }
-      return;
-    }
-
-    const overlay = document.getElementById('drilldown-modal-overlay');
-    const titleEl = document.getElementById('drilldown-modal-title');
-    const descEl = document.getElementById('drilldown-modal-desc');
-    const bodyEl = document.getElementById('drilldown-modal-body');
-    if (!overlay || !bodyEl) return;
-
-    let title = '';
-    let desc = '';
-    let filteredList = [];
-
-    if (insightKey === 'top-broker') {
-      const brokerName = insights.topBroker?.name || '';
-      title = `Propostas com o Corretor: ${brokerName}`;
-      desc = `Listagem de todas as propostas com participação de ${brokerName} (1ª a 3ª posição) no período selecionado`;
-      filteredList = (insights.topBroker?.proposals && insights.topBroker.proposals.length > 0)
-        ? insights.topBroker.proposals
-        : proposals.filter(p => {
-            const b = [p.CORRETORES_1, p.CORRETORES_2, p.CORRETORES_3].filter(Boolean).map(s => s.trim());
-            return b.includes(brokerName);
-          });
-    } else if (insightKey === 'top-uf') {
-      const uf = insights.topUf?.uf || '';
-      title = `Propostas no ${insights.topUf?.label || 'Estado ' + uf}`;
-      desc = `Listagem de todas as cotações com abrangência em ${uf} no período selecionado`;
-      filteredList = (insights.topUf?.proposals && insights.topUf.proposals.length > 0)
-        ? insights.topUf.proposals
-        : proposals.filter(p => {
-            const ufs = (window.StrategicInsights && window.StrategicInsights.extractUfsFromProposal)
-              ? window.StrategicInsights.extractUfsFromProposal(p)
-              : [p.UF];
-            return ufs.includes(uf);
-          });
-    } else if (insightKey === 'closed-revenue') {
-      title = 'Contratos Fechados no Período';
-      desc = `Listagem das ${insights.closedProposals?.closedCount || 0} propostas fechadas totalizando ${insights.closedProposals?.formattedRevenue || 'R$ 0,00'}`;
-      filteredList = (insights.closedProposals?.proposals && insights.closedProposals.proposals.length > 0)
-        ? insights.closedProposals.proposals
-        : proposals.filter(p => (p.TEMPERATURA_CONTRATO || '').trim() === 'Contrato Fechado');
-    }
-
-    let sumLives = 0;
-    let sumRev = 0;
-    filteredList.forEach(p => {
-      sumLives += BusinessRules.parseLives(p.VIDAS);
-      sumRev += BusinessRules.parseCurrency(p.FATURAMENTO);
-    });
-
-    titleEl.textContent = title;
-    descEl.textContent = desc;
-
-    bodyEl.innerHTML = `
-      <div class="drilldown-kpis">
-        <div class="drilldown-kpi-card">
-          <span class="drilldown-kpi-val">${filteredList.length.toLocaleString('pt-BR')}</span>
-          <span class="drilldown-kpi-label">Propostas Listadas</span>
-        </div>
-        <div class="drilldown-kpi-card">
-          <span class="drilldown-kpi-val">${sumLives.toLocaleString('pt-BR')}</span>
-          <span class="drilldown-kpi-label">Total de Vidas</span>
-        </div>
-        <div class="drilldown-kpi-card">
-          <span class="drilldown-kpi-val" style="color:var(--success);">${BusinessRules.formatCurrency(sumRev)}</span>
-          <span class="drilldown-kpi-label">Faturamento Total</span>
-        </div>
+      <div style="display:flex; justify-content:flex-end; margin-bottom:0.75rem;">
+        <button class="btn btn-secondary btn-sm" id="btn-drilldown-switch-to-proposals">
+          Abrir na tela de Prospecções →
+        </button>
       </div>
 
       <div class="table-container" style="max-height: 420px; overflow-y: auto;">
@@ -2073,18 +2224,18 @@
             </tr>
           </thead>
           <tbody>
-            ${filteredList.map(p => {
+            ${list.slice(0, 100).map(p => {
               const brokers = [p.CORRETORES_1, p.CORRETORES_2, p.CORRETORES_3].filter(Boolean).join(' / ') || 'Sem corretor';
               return `
                 <tr style="cursor:pointer;" data-prp-id="${p.ID}">
                   <td><span class="code-tag">#PRP-${p.ID}</span></td>
-                  <td><strong>${p.EMPRESA || 'Empresa Não Informada'}</strong></td>
-                  <td>${p.UF || '-'}</td>
+                  <td><strong>${escapeHtml(p.EMPRESA || 'Empresa Não Informada')}</strong></td>
+                  <td>${escapeHtml(p.UF || '-')}</td>
                   <td class="tnum">${p.VIDAS || '0'}</td>
                   <td class="tnum font-bold">${p.FATURAMENTO || 'R$ 0,00'}</td>
                   <td>${p.COMPETENCIA || '-'}</td>
                   <td><span class="temp-badge ${getBadgeClass(p.TEMPERATURA_CONTRATO)}">${p.TEMPERATURA_CONTRATO || 'Iniciada'}</span></td>
-                  <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${brokers}">${brokers}</td>
+                  <td style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(brokers)}">${escapeHtml(brokers)}</td>
                   <td><button class="exec-action-link btn-drilldown-open" data-prp-id="${p.ID}">Abrir →</button></td>
                 </tr>
               `;
@@ -2092,7 +2243,7 @@
           </tbody>
         </table>
       </div>
-      ${filteredList.length > 50 ? `<div style="text-align:center;font-size:0.75rem;color:var(--text-muted);margin-top:8px;">Exibindo todas as ${filteredList.length} propostas com rolagem vertical.</div>` : ''}
+      ${list.length > 100 ? `<div style="text-align:center;font-size:0.75rem;color:var(--text-muted);margin-top:8px;">Exibindo as primeiras 100 de ${list.length} propostas. Use o botão acima para ver todas com paginação.</div>` : ''}
     `;
 
     bodyEl.querySelectorAll('tr[data-prp-id]').forEach(row => {
@@ -2110,26 +2261,17 @@
       });
     });
 
+    const btnSwitch = bodyEl.querySelector('#btn-drilldown-switch-to-proposals');
+    if (btnSwitch) {
+      btnSwitch.addEventListener('click', () => {
+        closeDrillDownModal();
+        state.currentTab = 'proposals';
+        renderView();
+      });
+    }
+
     overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
-  }
-
-  function renderFunnelItem(label, count, total, color) {
-    const pct = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
-    return `
-      <div class="funnel-item interactive" data-temp="${label}" title="Clique para abrir as ${count} propostas deste estágio">
-        <div class="funnel-progress" style="width: ${pct}%; background-color: ${color};"></div>
-        <div class="funnel-name">
-          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color: ${color};"></span>
-          ${label}
-        </div>
-        <div class="funnel-stats">
-          <span class="funnel-count tnum">${count}</span>
-          <span class="funnel-vol tnum">(${pct}%)</span>
-          <span style="font-size:0.75rem; color:var(--text-muted); margin-left:0.25rem;">→</span>
-        </div>
-      </div>
-    `;
   }
 
   // 2. GESTÃO DE PROSPECÇÕES EMPRESARIAIS (KANBAN & TABELA)
