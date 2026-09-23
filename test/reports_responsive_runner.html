@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste de Responsividade - Relatórios CRM SB Saúde</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialTheme = urlParams.get('theme') || 'light';
+    localStorage.setItem('crm_auth_session', JSON.stringify({
+      login: 'ADMINISTRADOR',
+      name: 'Administrador Master',
+      profile: 'Administrador Master',
+      role: 'Administrador Master'
+    }));
+    localStorage.setItem('crm_active_user', 'ADMINISTRADOR');
+    localStorage.setItem('crm_theme_preference', initialTheme);
+    window.location.hash = '#reports';
+  </script>
+  <script src="/js/campanhas_data.js"></script>
+  <script src="/js/database.js"></script>
+  <script src="/js/business-rules.js"></script>
+  <script src="/js/reports-engine.js"></script>
+  <script src="/js/supabase-client.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar" id="main-sidebar">
+      <div class="sidebar-header">
+        <div class="brand-container">
+          <div class="logo-mark"><span class="logo-cross">+</span></div>
+          <div class="brand-text">
+            <span class="brand-name">SB Saúde</span>
+            <span class="brand-sub">Comercial</span>
+          </div>
+        </div>
+        <button class="sidebar-toggle-btn" id="sidebar-toggle" title="Recolher menu">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="nav-item active" data-tab="reports" id="nav-item-reports">
+          <span class="nav-label">Relatórios</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer" id="sidebar-user-footer">
+        <div class="user-avatar" id="sidebar-user-avatar">AD</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-user-name">Administrador</div>
+          <div class="user-role" id="sidebar-user-role">Administrador Master</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header">
+        <button class="mobile-menu-btn" id="mobile-menu-btn" title="Menu">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+        <div class="theme-switch-control" id="theme-switch-control">
+          <button type="button" class="theme-switch-btn" data-theme-choice="light" id="theme-btn-light">Claro</button>
+          <button type="button" class="theme-switch-btn" data-theme-choice="dark" id="theme-btn-dark">Escuro</button>
+          <button type="button" class="theme-switch-btn active" data-theme-choice="auto" id="theme-btn-auto">Auto</button>
+        </div>
+      </header>
+
+      <section class="page-container" id="view-content">
+      </section>
+
+      <footer class="system-status-footer">
+        <div class="status-footer-left"><span>SB Saúde Corporativo</span></div>
+      </footer>
+    </main>
+  </div>
+
+  <div class="login-overlay-screen" id="login-screen" style="display:none;"></div>
+
+  <script src="/js/app.js"></script>
+
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const scenario = params.get('scenario') || 'default';
+          const theme = params.get('theme') || 'light';
+
+          if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.setAttribute('data-theme-choice', 'dark');
+          } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            document.documentElement.setAttribute('data-theme-choice', 'light');
+          }
+
+          // Cenário específico: Template Contratos Fechados (9 colunas, 194 registros)
+          if (scenario === 'contratos_fechados') {
+            const tplCard = document.querySelector('[data-template-id="tpl-contratos-fechados"]');
+            if (tplCard) {
+              tplCard.click();
+            }
+          }
+
+          // Cenário com mais de 8 colunas (ex: todas as colunas da fonte)
+          if (scenario === 'many_cols') {
+            const btnColsAll = document.getElementById('rep-cols-all');
+            if (btnColsAll) {
+              btnColsAll.click();
+            }
+            const btnGen = document.getElementById('rep-btn-generate');
+            if (btnGen) {
+              btnGen.click();
+            }
+          }
+
+          // Cenário Agrupado com Totais
+          if (scenario === 'grouped') {
+            const groupSelect = document.getElementById('rep-group-select');
+            if (groupSelect) {
+              groupSelect.value = 'TEMPERATURA_CONTRATO';
+              groupSelect.dispatchEvent(new Event('change'));
+            }
+            const btnGen = document.getElementById('rep-btn-generate');
+            if (btnGen) {
+              btnGen.click();
+            }
+          }
+
+          // Aguarda renderização caso haja alteração de cenário
+          setTimeout(() => {
+            const docEl = document.documentElement;
+            const bodyEl = document.body;
+            const tableContainer = document.querySelector('.rep-table-container');
+            const table = document.querySelector('.rep-data-table');
+            const stages = Array.from(document.querySelectorAll('.rep-stage'));
+            const stageDots = Array.from(document.querySelectorAll('.rep-stage-dot'));
+            const oldBadges = Array.from(document.querySelectorAll('.rep-data-table .badge'));
+            const totalsRow = document.querySelector('.rep-totals-tr');
+            const rows = Array.from(document.querySelectorAll('.rep-data-table tbody tr'));
+
+            const docScrollWidth = docEl.scrollWidth;
+            const docClientWidth = docEl.clientWidth;
+            const bodyScrollWidth = bodyEl.scrollWidth;
+            const bodyClientWidth = bodyEl.clientWidth;
+            const containerScrollWidth = tableContainer ? tableContainer.scrollWidth : 0;
+            const containerClientWidth = tableContainer ? tableContainer.clientWidth : 0;
+
+            const hasDocHorizontalScroll = (docScrollWidth - docClientWidth) > 1;
+            const hasBodyHorizontalScroll = (bodyScrollWidth - bodyClientWidth) > 1;
+            const hasTableContainerHorizontalScroll = (containerScrollWidth - containerClientWidth) > 1;
+
+            const colHeaders = Array.from(document.querySelectorAll('.rep-data-table th'));
+            const colCount = colHeaders.length;
+
+            const theadEl = table ? table.querySelector('thead') : null;
+            const theadComputedDisplay = theadEl ? window.getComputedStyle(theadEl).display : '';
+            const tableComputedDisplay = table ? window.getComputedStyle(table).display : '';
+            const tbodyEl = table ? table.querySelector('tbody') : null;
+            const tbodyComputedDisplay = tbodyEl ? window.getComputedStyle(tbodyEl).display : '';
+
+            const isCardMode = (
+              (table && table.classList.contains('rep-data-table--cards')) ||
+              theadComputedDisplay === 'none'
+            );
+
+            // Verificação de data-label em todos os TDs
+            const allTds = Array.from(document.querySelectorAll('.rep-data-table tbody td'));
+            const tdsWithoutLabel = allTds.filter(td => !td.getAttribute('data-label'));
+
+            // Verifica se o seletor de registros por página está no rodapé
+            const pageSizeSelectInFooter = !!document.querySelector('.rep-pagination-bar #rep-page-size-select');
+
+            // Amostragem de cor de status
+            let stageSampleColor = null;
+            if (stages.length > 0) {
+              stageSampleColor = window.getComputedStyle(stages[0]).color;
+            }
+
+            const results = {
+              scenario,
+              theme,
+              viewport: {
+                width: window.innerWidth,
+                height: window.innerHeight
+              },
+              document: {
+                scrollWidth: docScrollWidth,
+                clientWidth: docClientWidth,
+                hasHorizontalScroll: hasDocHorizontalScroll
+              },
+              body: {
+                scrollWidth: bodyScrollWidth,
+                clientWidth: bodyClientWidth,
+                hasHorizontalScroll: hasBodyHorizontalScroll
+              },
+              tableContainer: {
+                scrollWidth: containerScrollWidth,
+                clientWidth: containerClientWidth,
+                hasHorizontalScroll: hasTableContainerHorizontalScroll
+              },
+              statusAesthetics: {
+                stagesCount: stages.length,
+                stageDotsCount: stageDots.length,
+                oldBadgesCount: oldBadges.length,
+                stageSampleColor
+              },
+              layout: {
+                colCount,
+                isCardMode,
+                hasTotalsRow: !!totalsRow,
+                rowCount: rows.length,
+                tableComputedDisplay,
+                tbodyComputedDisplay,
+                theadComputedDisplay,
+                pageSizeSelectInFooter,
+                tdsWithoutLabelCount: tdsWithoutLabel.length
+              },
+              pass: (
+                !hasDocHorizontalScroll &&
+                !hasBodyHorizontalScroll &&
+                !hasTableContainerHorizontalScroll &&
+                stages.length > 0 &&
+                stageDots.length === stages.length &&
+                oldBadges.length === 0 &&
+                tdsWithoutLabel.length === 0
+              )
+            };
+
+            document.body.setAttribute('data-test-done', 'true');
+            document.body.setAttribute('data-test-payload', JSON.stringify(results));
+          }, 350);
+
+        } catch (err) {
+          document.body.setAttribute('data-test-done', 'error');
+          document.body.setAttribute('data-test-payload', JSON.stringify({ error: err.message, stack: err.stack }));
+        }
+      }, 500);
+    });
+  </script>
+</body>
+</html>

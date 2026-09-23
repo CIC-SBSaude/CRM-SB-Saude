@@ -568,6 +568,91 @@
       }
     }
 
+    // ==========================================
+    // SOLICITAÇÃO E GESTÃO DE REDEFINIÇÃO DE SENHA
+    // ==========================================
+    async requestPasswordReset(identifier) {
+      if (!this.client) {
+        return { success: false, error_code: 'CLIENT_OFFLINE', error: 'Servidor indisponível. Verifique a conexão com a rede.' };
+      }
+      const cleanId = String(identifier || '').trim();
+      if (!cleanId) {
+        return { success: false, error_code: 'EMPTY_IDENTIFIER', error: 'Por favor, informe seu usuário ou e-mail institucional.' };
+      }
+
+      try {
+        const { data, error } = await this.client.rpc('request_password_reset', {
+          p_identifier: cleanId
+        });
+
+        if (error) {
+          console.warn('[Supabase] Erro ao invocar request_password_reset:', error.message);
+          return { success: false, error_code: 'RPC_ERROR', error: error.message };
+        }
+
+        return data || {
+          success: true,
+          message: 'Solicitação recebida. Se o usuário informado estiver cadastrado, ela foi encaminhada aos administradores. Entre em contato com um administrador para acompanhar a redefinição da senha.'
+        };
+      } catch (err) {
+        console.error('[Supabase] Exceção em requestPasswordReset:', err);
+        return { success: false, error_code: 'NETWORK_ERROR', error: err?.message || String(err) };
+      }
+    }
+
+    async fetchPasswordResetRequests() {
+      if (!this.client) return null;
+      const token = this.getSessionToken();
+      if (!token) {
+        return { success: false, error_code: 'UNAUTHORIZED', error: 'Sessão administrativa não autenticada.' };
+      }
+
+      try {
+        const { data, error } = await this.client.rpc('admin_list_password_reset_requests', {
+          p_session_token: token
+        });
+
+        if (error) {
+          console.warn('[Supabase] Erro ao buscar solicitações de redefinição:', error.message);
+          return { success: false, error_code: 'RPC_ERROR', error: error.message };
+        }
+
+        return data || { success: true, requests: [] };
+      } catch (err) {
+        console.error('[Supabase] Exceção ao buscar solicitações:', err);
+        return { success: false, error_code: 'NETWORK_ERROR', error: err?.message || String(err) };
+      }
+    }
+
+    async resolvePasswordResetRequest(requestId, action, notes = null) {
+      if (!this.client) {
+        return { success: false, error_code: 'CLIENT_OFFLINE', error: 'Servidor indisponível.' };
+      }
+      const token = this.getSessionToken();
+      if (!token) {
+        return { success: false, error_code: 'UNAUTHORIZED', error: 'Sessão administrativa não autenticada.' };
+      }
+
+      try {
+        const { data, error } = await this.client.rpc('admin_resolve_password_reset_request', {
+          p_session_token: token,
+          p_request_id: requestId,
+          p_action: action,
+          p_notes: notes
+        });
+
+        if (error) {
+          console.warn('[Supabase] Erro ao resolver solicitação:', error.message);
+          return { success: false, error_code: 'RPC_ERROR', error: error.message };
+        }
+
+        return data || { success: true };
+      } catch (err) {
+        console.error('[Supabase] Exceção ao resolver solicitação:', err);
+        return { success: false, error_code: 'NETWORK_ERROR', error: err?.message || String(err) };
+      }
+    }
+
     async fetchUsers() {
       if (!this.client) return null;
       try {
@@ -983,6 +1068,16 @@
               console.log('[Supabase Realtime] Evento na tabela users:', payload.eventType, payload.new?.username || payload.old?.username);
               if (typeof callbacks.onUserChange === 'function') {
                 callbacks.onUserChange(payload);
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'password_reset_requests' },
+            payload => {
+              console.log('[Supabase Realtime] Evento na tabela password_reset_requests:', payload.eventType, payload.new?.id || payload.old?.id);
+              if (typeof callbacks.onPasswordResetChange === 'function') {
+                callbacks.onPasswordResetChange(payload);
               }
             }
           )

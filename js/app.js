@@ -332,6 +332,22 @@
               if (state.currentTab === 'admin' && typeof renderView === 'function') renderView();
             }
           }
+        },
+        onPasswordResetChange: async (payload) => {
+          console.log('[Supabase Realtime] Evento na tabela password_reset_requests:', payload.eventType, payload.new?.id);
+          if (window.crmSupabase && typeof window.crmSupabase.fetchPasswordResetRequests === 'function') {
+            try {
+              const res = await window.crmSupabase.fetchPasswordResetRequests();
+              if (res && res.success && Array.isArray(res.requests)) {
+                adminViewState.pwdRequests = res.requests;
+                if (state.currentTab === 'admin' && typeof renderView === 'function') {
+                  renderView();
+                }
+              }
+            } catch (err) {
+              console.warn('[Admin Realtime] Falha ao recarregar solicitações:', err);
+            }
+          }
         }
       });
     } catch (e) {
@@ -6670,10 +6686,13 @@
   ];
 
   const adminViewState = {
-    activeTab: 'users', // 'users', 'security', 'audit'
+    activeTab: 'users', // 'users', 'pwd-requests', 'security', 'audit'
     searchQuery: '',
     profileFilter: 'all',
-    statusFilter: 'all'
+    statusFilter: 'all',
+    pwdRequests: [],
+    pwdRequestsStatusFilter: 'all',
+    pwdRequestsSearch: ''
   };
 
   function getAdminUsers() {
@@ -6891,6 +6910,8 @@
     const with2fa = users.filter(u => u.twoFactor).length;
     const pct2fa = users.length > 0 ? Math.round((with2fa / users.length) * 100) : 100;
     const secSettings = getSecuritySettings();
+    const pwdRequests = adminViewState.pwdRequests || [];
+    const pendingRequestsCount = pwdRequests.filter(r => r.status === 'pendente').length;
 
     container.innerHTML = `
       <div class="admin-view-container">
@@ -6965,6 +6986,9 @@
           <button class="admin-tab-nav-btn ${adminViewState.activeTab === 'users' ? 'active' : ''}" data-tab="users">
             <span>👥</span> Usuários &amp; Permissões (${users.length})
           </button>
+          <button class="admin-tab-nav-btn ${adminViewState.activeTab === 'pwd-requests' ? 'active' : ''}" data-tab="pwd-requests" id="admin-tab-btn-pwd-requests">
+            <span>🔑</span> Solicitações de Senha <span class="admin-tab-count-chip ${pendingRequestsCount > 0 ? '' : 'chip-zero'}" id="admin-pending-req-chip">${pendingRequestsCount}</span>
+          </button>
           <button class="admin-tab-nav-btn ${adminViewState.activeTab === 'security' ? 'active' : ''}" data-tab="security">
             <span>🛡️</span> Painel de Segurança &amp; Políticas
           </button>
@@ -6972,6 +6996,18 @@
             <span>📜</span> Trilha de Auditoria &amp; Logs Recentes
           </button>
         </div>
+
+        ${pendingRequestsCount > 0 ? `
+          <div class="admin-pending-alert-banner" id="admin-pending-alert-banner">
+            <div class="admin-pending-alert-content">
+              <span style="font-size:1.15rem;">⚠️</span>
+              <span>Há <strong>${pendingRequestsCount}</strong> solicitação(ões) de redefinição de senha aguardando atendimento administrativo.</span>
+            </div>
+            <button type="button" class="btn btn-secondary btn-xs" id="btn-admin-view-pending-reqs" style="font-weight:700;">
+              Ver Solicitações Pendentes
+            </button>
+          </div>
+        ` : ''}
 
         <!-- Conteúdo da Aba Selecionada -->
         <div id="admin-tab-content">
@@ -7013,7 +7049,30 @@
             }
           }
         }
-      }).catch(err => console.warn('[Admin] Verificação em background falhou:', err));
+      }).catch(err => console.warn('[Admin] Verificação de usuários em background falhou:', err));
+    }
+
+    // Sincronização em segundo plano das solicitações de redefinição de senha
+    if (window.crmSupabase && typeof window.crmSupabase.fetchPasswordResetRequests === 'function') {
+      window.crmSupabase.fetchPasswordResetRequests().then(res => {
+        if (res && res.success && Array.isArray(res.requests)) {
+          const oldStr = JSON.stringify(adminViewState.pwdRequests || []);
+          const newStr = JSON.stringify(res.requests);
+          if (oldStr !== newStr) {
+            adminViewState.pwdRequests = res.requests;
+            const newPending = res.requests.filter(r => r.status === 'pendente').length;
+            const chip = container.querySelector('#admin-pending-req-chip');
+            if (chip) {
+              chip.textContent = newPending;
+              if (newPending > 0) chip.classList.remove('chip-zero');
+              else chip.classList.add('chip-zero');
+            }
+            if (adminViewState.activeTab === 'pwd-requests') {
+              renderAdminTabContent();
+            }
+          }
+        }
+      }).catch(err => console.warn('[Admin] Verificação de solicitações falhou:', err));
     }
 
     // Eventos das Abas
@@ -7025,6 +7084,19 @@
         renderAdminTabContent();
       });
     });
+
+    // Botão de atalho no alerta de solicitações pendentes
+    const btnViewPending = container.querySelector('#btn-admin-view-pending-reqs');
+    if (btnViewPending) {
+      btnViewPending.addEventListener('click', () => {
+        adminViewState.activeTab = 'pwd-requests';
+        adminViewState.pwdRequestsStatusFilter = 'pendente';
+        container.querySelectorAll('.admin-tab-nav-btn').forEach(b => b.classList.remove('active'));
+        const tabBtn = container.querySelector('[data-tab="pwd-requests"]');
+        if (tabBtn) tabBtn.classList.add('active');
+        renderAdminTabContent();
+      });
+    }
 
     // Botões de Ação do Header
     const btnSyncHeader = container.querySelector('#btn-admin-sync-supabase');
@@ -7052,6 +7124,8 @@
 
       if (adminViewState.activeTab === 'users') {
         renderUsersTab(content);
+      } else if (adminViewState.activeTab === 'pwd-requests') {
+        renderPasswordRequestsTab(content);
       } else if (adminViewState.activeTab === 'security') {
         renderSecurityTab(content);
       } else if (adminViewState.activeTab === 'audit') {
@@ -7265,6 +7339,325 @@
 
       tabContainer.querySelectorAll('.btn-delete-user').forEach(btn => {
         btn.addEventListener('click', () => deleteUser(btn.dataset.uid));
+      });
+    }
+
+    // ABA: SOLICITAÇÕES DE REDEFINIÇÃO DE SENHA
+    function renderPasswordRequestsTab(tabContainer) {
+      const allRequests = adminViewState.pwdRequests || [];
+      let filtered = allRequests;
+
+      if (adminViewState.pwdRequestsSearch) {
+        const q = adminViewState.pwdRequestsSearch.toLowerCase();
+        filtered = filtered.filter(r =>
+          (r.username || '').toLowerCase().includes(q) ||
+          (r.user_name || '').toLowerCase().includes(q) ||
+          (r.user_email || '').toLowerCase().includes(q) ||
+          (r.requested_identifier || '').toLowerCase().includes(q) ||
+          (r.notes || '').toLowerCase().includes(q) ||
+          (r.resolved_by_admin || '').toLowerCase().includes(q)
+        );
+      }
+
+      if (adminViewState.pwdRequestsStatusFilter !== 'all') {
+        filtered = filtered.filter(r => r.status === adminViewState.pwdRequestsStatusFilter);
+      }
+
+      const pendingCount = allRequests.filter(r => r.status === 'pendente').length;
+      const resolvedCount = allRequests.filter(r => r.status === 'resolvida').length;
+      const canceledCount = allRequests.filter(r => r.status === 'cancelada').length;
+
+      tabContainer.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:1rem;">
+          <!-- Barra de Filtros e Ações de Solicitações -->
+          <div class="admin-users-toolbar">
+            <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; flex:1;">
+              <div class="admin-search-box">
+                <span style="color:#94a3b8; font-size:0.85rem;">🔍</span>
+                <input type="text" class="admin-search-input" id="inp-search-pwd-reqs" placeholder="Buscar por usuário, e-mail, notas..." value="${adminViewState.pwdRequestsSearch}">
+              </div>
+
+              <select class="companies-select" id="select-filter-pwd-reqs-status" style="height:34px; font-size:0.78rem;">
+                <option value="all" ${adminViewState.pwdRequestsStatusFilter === 'all' ? 'selected' : ''}>Todos os status (${allRequests.length})</option>
+                <option value="pendente" ${adminViewState.pwdRequestsStatusFilter === 'pendente' ? 'selected' : ''}>⏳ Pendentes (${pendingCount})</option>
+                <option value="resolvida" ${adminViewState.pwdRequestsStatusFilter === 'resolvida' ? 'selected' : ''}>✓ Resolvidas (${resolvedCount})</option>
+                <option value="cancelada" ${adminViewState.pwdRequestsStatusFilter === 'cancelada' ? 'selected' : ''}>✕ Encerradas (${canceledCount})</option>
+              </select>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <button class="btn btn-secondary btn-sm" id="btn-admin-sync-pwd-reqs" style="font-size:0.78rem; padding:0.4rem 0.85rem; display:inline-flex; align-items:center; gap:5px;" title="Atualizar lista de solicitações">
+                <span>🔄</span> Atualizar Solicitações
+              </button>
+            </div>
+          </div>
+
+          <!-- Tabela de Solicitações -->
+          <div class="companies-table-card">
+            <div class="companies-table-responsive">
+              <table class="companies-data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>SOLICITANTE / CONTA</th>
+                    <th>E-MAIL CORPORATIVO</th>
+                    <th>PERFIL / CARGO</th>
+                    <th>DATA DA SOLICITAÇÃO</th>
+                    <th>ORIGEM / IP</th>
+                    <th>STATUS</th>
+                    <th>ATENDIMENTO / RESOLUÇÃO</th>
+                    <th style="text-align:right;">AÇÕES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${filtered.length === 0 ? `
+                    <tr>
+                      <td colspan="9" style="text-align:center; padding:2.5rem; color:#64748b;">
+                        Nenhuma solicitação encontrada com os filtros selecionados.
+                      </td>
+                    </tr>
+                  ` : filtered.map(req => {
+                    const isPending = req.status === 'pendente';
+                    const isResolved = req.status === 'resolvida';
+                    const isCanceled = req.status === 'cancelada';
+
+                    const badgeClass = isPending ? 'req-badge-pendente' : (isResolved ? 'req-badge-resolvida' : 'req-badge-cancelada');
+                    const badgeText = isPending ? '⏳ Pendente' : (isResolved ? '✓ Resolvida' : '✕ Encerrada');
+
+                    const dateStr = req.created_at ? new Date(req.created_at).toLocaleString('pt-BR') : '-';
+                    const resolvedDateStr = req.resolved_at ? new Date(req.resolved_at).toLocaleString('pt-BR') : '';
+
+                    return `
+                      <tr class="companies-row">
+                        <td>
+                          <span style="font-size:0.75rem; font-weight:700; color:var(--text-muted); font-family:monospace;">#${req.id}</span>
+                        </td>
+                        <td>
+                          <div class="admin-user-cell">
+                            <div class="admin-user-avatar-circle" style="width:32px; height:32px; font-size:0.75rem;">
+                              ${(req.user_name || req.username || '??').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <span class="admin-user-name">${req.user_name || req.username || 'Usuário'}</span>
+                              <span class="admin-user-login-badge">Login: <strong>${req.username || '-'}</strong></span>
+                              ${req.requested_identifier && req.requested_identifier.toLowerCase() !== (req.username || '').toLowerCase() ? `
+                                <div style="font-size:0.68rem; color:#64748b;">Digitado: <em>${req.requested_identifier}</em></div>
+                              ` : ''}
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span style="font-size:0.78rem; color:#475569;">${req.user_email || '-'}</span>
+                        </td>
+                        <td>
+                          <div style="font-size:0.78rem; font-weight:600; color:var(--text-primary);">${req.user_role || '-'}</div>
+                          <div style="font-size:0.7rem; color:var(--text-muted);">${req.user_profile || '-'}</div>
+                        </td>
+                        <td>
+                          <span style="font-size:0.75rem; color:#64748b;">${dateStr}</span>
+                        </td>
+                        <td>
+                          <div style="font-size:0.72rem; font-family:monospace; color:#64748b;">
+                            ${req.client_ip ? 'IP: ' + req.client_ip : '<span style="font-style:italic;">IP não reg.</span>'}
+                          </div>
+                          ${req.ip_source ? `<div style="font-size:0.65rem; color:#94a3b8;">(${req.ip_source})</div>` : ''}
+                        </td>
+                        <td>
+                          <span class="req-badge ${badgeClass}">${badgeText}</span>
+                        </td>
+                        <td>
+                          ${isResolved ? `
+                            <div style="font-size:0.75rem; color:#15803d;">
+                              <div>Por: <strong>${req.resolved_by_admin || 'Admin'}</strong></div>
+                              <div style="font-size:0.68rem; color:#64748b;">${resolvedDateStr}</div>
+                              ${req.notes ? `<div style="font-size:0.68rem; color:#475569; font-style:italic;">"${req.notes}"</div>` : ''}
+                            </div>
+                          ` : isCanceled ? `
+                            <div style="font-size:0.75rem; color:#64748b;">
+                              <div>Por: <strong>${req.resolved_by_admin || 'Admin'}</strong></div>
+                              <div style="font-size:0.68rem;">${resolvedDateStr}</div>
+                              ${req.notes ? `<div style="font-size:0.68rem; color:#94a3b8; font-style:italic;">"${req.notes}"</div>` : ''}
+                            </div>
+                          ` : `
+                            <span style="font-size:0.75rem; color:#d97706; font-style:italic;">Aguardando ação...</span>
+                          `}
+                        </td>
+                        <td style="text-align:right;">
+                          ${isPending ? `
+                            <div class="admin-actions-group" style="justify-content:flex-end;">
+                              <button type="button" class="btn btn-primary btn-xs btn-req-reset" data-req-id="${req.id}" data-user-id="${req.user_id}" data-username="${req.username}" title="Redefinir senha e concluir atendimento" style="font-size:0.74rem; font-weight:600; padding:0.3rem 0.65rem; display:inline-flex; align-items:center; gap:4px;">
+                                <span>🔑</span> Redefinir Senha
+                              </button>
+                              <button type="button" class="btn btn-secondary btn-xs btn-req-cancel" data-req-id="${req.id}" data-username="${req.username}" title="Encerrar solicitação sem alterar senha" style="font-size:0.74rem; padding:0.3rem 0.65rem; color:#64748b;">
+                                <span>✕</span> Encerrar
+                              </button>
+                            </div>
+                          ` : `
+                            <span style="font-size:0.72rem; color:#94a3b8;">Atendimento concluído</span>
+                          `}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="companies-table-footer">
+              <span>Total de <strong>${filtered.length}</strong> solicitação(ões) exibida(s)</span>
+              <span style="font-size:0.72rem; color:#64748b;">Auditoria de Segurança SB Saúde • Registro Imutável</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Eventos
+      const searchInp = tabContainer.querySelector('#inp-search-pwd-reqs');
+      if (searchInp) {
+        searchInp.addEventListener('input', (e) => {
+          adminViewState.pwdRequestsSearch = e.target.value.trim();
+          renderPasswordRequestsTab(tabContainer);
+        });
+      }
+
+      const statusSel = tabContainer.querySelector('#select-filter-pwd-reqs-status');
+      if (statusSel) {
+        statusSel.addEventListener('change', (e) => {
+          adminViewState.pwdRequestsStatusFilter = e.target.value;
+          renderPasswordRequestsTab(tabContainer);
+        });
+      }
+
+      const btnSync = tabContainer.querySelector('#btn-admin-sync-pwd-reqs');
+      if (btnSync) {
+        btnSync.addEventListener('click', async () => {
+          btnSync.disabled = true;
+          btnSync.innerHTML = '<span>⏳</span> Atualizando...';
+          try {
+            if (window.crmSupabase && typeof window.crmSupabase.fetchPasswordResetRequests === 'function') {
+              const res = await window.crmSupabase.fetchPasswordResetRequests();
+              if (res && res.success && Array.isArray(res.requests)) {
+                adminViewState.pwdRequests = res.requests;
+                showToast('Solicitações de senha atualizadas com sucesso!', 'success');
+              } else {
+                showToast(res?.error || 'Erro ao sincronizar solicitações.', 'error');
+              }
+            }
+          } catch (err) {
+            showToast('Falha na conexão: ' + (err.message || err), 'error');
+          } finally {
+            renderAdmin(container);
+          }
+        });
+      }
+
+      tabContainer.querySelectorAll('.btn-req-reset').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const reqId = btn.dataset.reqId;
+          const uId = btn.dataset.userId;
+          const uName = btn.dataset.username;
+
+          const usersList = getAdminUsers();
+          const found = usersList.find(u => String(u.id) === String(uId) || (u.login || '').toUpperCase() === (uName || '').toUpperCase());
+          const targetUserId = found ? found.id : uId;
+
+          openChangePasswordModal(targetUserId, {
+            requestId: reqId,
+            requestUsername: uName
+          });
+        });
+      });
+
+      tabContainer.querySelectorAll('.btn-req-cancel').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const reqId = btn.dataset.reqId;
+          const uName = btn.dataset.username;
+          openCancelRequestModal(reqId, uName);
+        });
+      });
+    }
+
+    // MODAL DE ENCERRAMENTO / CANCELAMENTO DE SOLICITAÇÃO
+    function openCancelRequestModal(requestId, username) {
+      const modalContainer = container.querySelector('#admin-modal-container');
+      if (!modalContainer) return;
+
+      modalContainer.innerHTML = `
+        <div class="modal-dialog" style="max-width: 480px;">
+          <div class="modal-header">
+            <div>
+              <h3 style="margin:0; font-size:1.15rem; color:var(--text-primary);">Encerrar Solicitação #${requestId}</h3>
+              <p style="margin:0.15rem 0 0 0; font-size:0.78rem; color:var(--text-muted);">
+                Usuário solicitante: <strong>${username}</strong>
+              </p>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="btn-close-cancel-req-modal" style="font-size:1.2rem;">✕</button>
+          </div>
+
+          <div class="modal-body" style="display:flex; flex-direction:column; gap:1rem;">
+            <p style="font-size:0.82rem; color:var(--text-secondary); margin:0;">
+              Ao encerrar esta solicitação sem redefinir a senha, o registro será marcado como cancelado/encerrado para fins de auditoria. A credencial atual do usuário permanecerá inalterada.
+            </p>
+
+            <div class="form-group">
+              <label style="font-size:0.8125rem; font-weight:600; color:var(--text-primary); display:block; margin-bottom:0.35rem;">
+                Motivo / Justificativa do Encerramento
+              </label>
+              <textarea class="form-control" id="inp-cancel-req-reason" rows="3" placeholder="Ex: Solicitação atendida previamente ou cancelada a pedido do usuário" style="resize:vertical; font-size:0.82rem;">Solicitação encerrada pelo administrador sem alteração de credencial.</textarea>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" id="btn-abort-cancel-req">Voltar</button>
+            <button type="button" class="btn btn-secondary" id="btn-confirm-cancel-req" style="font-weight:600;">
+              Confirmar Encerramento
+            </button>
+          </div>
+        </div>
+      `;
+
+      modalContainer.classList.add('active');
+
+      const closeModal = () => modalContainer.classList.remove('active');
+      modalContainer.querySelector('#btn-close-cancel-req-modal').addEventListener('click', closeModal);
+      modalContainer.querySelector('#btn-abort-cancel-req').addEventListener('click', closeModal);
+      modalContainer.addEventListener('click', (e) => {
+        if (e.target === modalContainer) closeModal();
+      });
+
+      modalContainer.querySelector('#btn-confirm-cancel-req').addEventListener('click', async () => {
+        const reason = modalContainer.querySelector('#inp-cancel-req-reason').value.trim() || 'Solicitação encerrada pelo administrador.';
+        const btnConfirm = modalContainer.querySelector('#btn-confirm-cancel-req');
+        btnConfirm.disabled = true;
+        btnConfirm.innerHTML = '⏳ Gravando...';
+
+        try {
+          if (!window.crmSupabase || typeof window.crmSupabase.resolvePasswordResetRequest !== 'function') {
+            throw new Error('Servidor Supabase indisponível.');
+          }
+
+          const res = await window.crmSupabase.resolvePasswordResetRequest(requestId, 'cancelada', reason);
+          if (res && res.success === false) {
+            throw new Error(res.error || 'Erro ao encerrar solicitação.');
+          }
+
+          addAuditLog('PASSWORD_REQUEST_CANCEL', `Solicitação #${requestId} encerrada para ${username}`, 'info', reason);
+          closeModal();
+          showToast(`Solicitação #${requestId} encerrada com sucesso!`, 'success');
+
+          // Atualiza lista de solicitações
+          if (typeof window.crmSupabase.fetchPasswordResetRequests === 'function') {
+            const rRes = await window.crmSupabase.fetchPasswordResetRequests();
+            if (rRes && rRes.success && Array.isArray(rRes.requests)) {
+              adminViewState.pwdRequests = rRes.requests;
+            }
+          }
+          renderAdmin(container);
+        } catch (err) {
+          console.error('[Admin] Erro ao encerrar solicitação:', err);
+          showToast(`Erro ao encerrar solicitação: ${err.message || err}`, 'error');
+          btnConfirm.disabled = false;
+          btnConfirm.innerHTML = 'Confirmar Encerramento';
+        }
       });
     }
 
@@ -7725,10 +8118,16 @@
     }
 
     // === MODAL 2: ALTERAÇÃO DE SENHA ===
-    function openChangePasswordModal(userId) {
+    function openChangePasswordModal(userId, options = {}) {
       const usersList = getAdminUsers();
-      const user = usersList.find(u => u.id === userId);
-      if (!user) return;
+      let user = usersList.find(u => String(u.id) === String(userId));
+      if (!user && options.requestUsername) {
+        user = usersList.find(u => (u.login || '').toUpperCase() === String(options.requestUsername).toUpperCase());
+      }
+      if (!user) {
+        showToast('Usuário não localizado na base cadastrada.', 'error');
+        return;
+      }
 
       const modalContainer = container.querySelector('#admin-modal-container');
       if (!modalContainer) return;
@@ -7737,7 +8136,7 @@
         <div class="modal-dialog" style="max-width: 540px;">
           <div class="modal-header">
             <div style="display:flex; align-items:center; gap:0.75rem;">
-              <div class="admin-user-avatar-circle" style="width:38px; height:38px;">${user.avatar}</div>
+              <div class="admin-user-avatar-circle" style="width:38px; height:38px;">${user.avatar || user.name.slice(0, 2).toUpperCase()}</div>
               <div>
                 <h3 style="margin:0; font-size:1.15rem;">Alterar Senha de Acesso</h3>
                 <p style="margin:0.15rem 0 0 0; font-size:0.78rem; color:var(--text-muted);">
@@ -7749,6 +8148,16 @@
           </div>
 
           <div class="modal-body" style="display:flex; flex-direction:column; gap:1rem;">
+            ${options.requestId ? `
+              <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:0.65rem 0.9rem; font-size:0.78rem; color:#1e40af; display:flex; align-items:center; gap:0.5rem;">
+                <span style="font-size:1rem;">🔗</span>
+                <div>
+                  <strong>Atendimento à Solicitação #${options.requestId}</strong>
+                  <div style="font-size:0.72rem; color:#3b82f6;">Ao salvar a nova senha, a solicitação será automaticamente marcada como resolvida e arquivada para auditoria.</div>
+                </div>
+              </div>
+            ` : ''}
+
             <div style="background:#fff1f2; border:1px solid #ffe4e6; border-radius:8px; padding:0.75rem 1rem; font-size:0.78rem; color:#9f1239;">
               ℹ️ A alteração da credencial entrará em vigor imediatamente. Recomenda-se o uso de senhas fortes com no mínimo 8 caracteres.
             </div>
@@ -7782,7 +8191,7 @@
               </label>
               <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
                 <input type="checkbox" id="chk-notify-email" checked style="width:16px; height:16px;">
-                <span>Enviar aviso de segurança para <strong>${user.email}</strong></span>
+                <span>Enviar aviso de segurança para <strong>${user.email || 'e-mail cadastrado'}</strong></span>
               </label>
             </div>
           </div>
@@ -7858,12 +8267,39 @@
             throw new Error(res.message || res.error || 'Erro ao redefinir senha no banco de dados.');
           }
 
+          // Se vinculado a uma solicitação de redefinição, encerra e marca como resolvida
+          if (options.requestId && typeof window.crmSupabase.resolvePasswordResetRequest === 'function') {
+            try {
+              await window.crmSupabase.resolvePasswordResetRequest(
+                options.requestId,
+                'resolvida',
+                'Senha redefinida com sucesso pelo administrador via painel.'
+              );
+            } catch (reqErr) {
+              console.warn('[Admin] Aviso ao resolver solicitação vinculada:', reqErr);
+            }
+          }
+
           addAuditLog('PASSWORD_CHANGE', `Senha alterada para o usuário ${user.login}`, 'warning', `Credencial criptografada via RPC administrativa autorizada`);
           closeModal();
           const confirmMsg = res.updated_at
             ? `Senha do usuário "${user.name}" redefinida e verificada no servidor!`
             : `Senha do usuário "${user.name}" redefinida e criptografada com sucesso no banco!`;
           showToast(confirmMsg, 'success');
+
+          // Recarrega lista de solicitações caso esteja visualizando abas administrativas
+          if (typeof window.crmSupabase.fetchPasswordResetRequests === 'function') {
+            try {
+              const rRes = await window.crmSupabase.fetchPasswordResetRequests();
+              if (rRes && rRes.success && Array.isArray(rRes.requests)) {
+                adminViewState.pwdRequests = rRes.requests;
+              }
+            } catch (fetchErr) {
+              console.warn('[Admin] Falha ao recarregar solicitações:', fetchErr);
+            }
+          }
+
+          renderAdmin(container);
         } catch (err) {
           console.error('[Admin] Erro ao alterar senha:', err);
           showToast(`Erro ao atualizar senha no banco: ${err.message || err}`, 'error');
@@ -8127,6 +8563,34 @@
     const records = result && Array.isArray(result.records) ? result.records : [];
     const displayedColumns = result && Array.isArray(result.displayedColumns) ? result.displayedColumns : reportsState.columns;
     const totals = result ? result.grandTotals : null;
+    const reportColumnLabel = (colId) => {
+      if (colId === 'count') return 'Qtd Registros';
+      if (colId.startsWith('sum_') || colId.startsWith('avg_')) {
+        const original = colId.slice(4);
+        const label = currentSchema.columns.find(c => c.id === original)?.label || original;
+        return `${colId.startsWith('sum_') ? 'Soma' : 'Média'} (${label})`;
+      }
+      return currentSchema.columns.find(c => c.id === colId)?.label || colId;
+    };
+    const reportColumnWeight = (colId) => {
+      if (colId === 'EMPRESA') return 24;
+      if (colId === 'TEMPERATURA_CONTRATO' || colId === 'STATUS' || colId === 'Status_Campanha') return 16;
+      if (colId === 'CORRETORES_1' || colId === 'CORRETOR' || colId === 'NOME_CORRETOR') return 15;
+      if (colId.includes('FATURAMENTO') || colId.startsWith('sum_') || colId.startsWith('avg_')) return 12;
+      if (colId === 'CNPJ') return 13;
+      if (colId === 'Tipo_Contrato') return 11;
+      if (colId === 'ACOMODACAO') return 10;
+      if (colId.includes('DATA')) return 10;
+      if (colId === 'COMPETENCIA') return 9;
+      if (colId === 'CIDADE' || colId === 'UF') return 8;
+      if (colId === 'VIDAS' || colId === 'count') return 6;
+      if (colId === 'ID') return 5;
+      return 10;
+    };
+    const totalColumnWeight = displayedColumns.reduce((sum, colId) => sum + reportColumnWeight(colId), 0) || 1;
+    const escapeReportAttribute = (value) => String(value).replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
 
     // Filtragem rápida de pesquisa local sobre a prévia
     let viewRecords = records;
@@ -8462,39 +8926,20 @@
           <div class="rep-table-toolbar">
             <div class="rep-table-search-box">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              <input type="text" class="rep-table-search-input" id="rep-table-search" placeholder="Pesquisa rápida na tabela..." value="${reportsState.searchTerm || ''}">
-            </div>
-            <div class="rep-table-toolbar-right">
-              <label for="rep-page-size-select" class="rep-page-label">Registros por página:</label>
-              <select class="rep-page-select" id="rep-page-size-select">
-                <option value="10" ${reportsState.pageSize === 10 ? 'selected' : ''}>10</option>
-                <option value="15" ${reportsState.pageSize === 15 ? 'selected' : ''}>15</option>
-                <option value="25" ${reportsState.pageSize === 25 ? 'selected' : ''}>25</option>
-                <option value="50" ${reportsState.pageSize === 50 ? 'selected' : ''}>50</option>
-                <option value="100" ${reportsState.pageSize === 100 ? 'selected' : ''}>100</option>
-                <option value="all" ${reportsState.pageSize === 'all' ? 'selected' : ''}>Todas</option>
-              </select>
+              <input type="text" class="rep-table-search-input" id="rep-table-search" placeholder="Pesquisar resultados..." value="${reportsState.searchTerm || ''}">
             </div>
           </div>
 
           <!-- Tabela de Dados Responsiva -->
           <div class="rep-table-container">
             <table class="rep-data-table" id="rep-preview-table">
+              <colgroup>
+                ${displayedColumns.map(colId => `<col style="width:${(reportColumnWeight(colId) / totalColumnWeight * 100).toFixed(2)}%">`).join('')}
+              </colgroup>
               <thead>
                 <tr>
                   ${displayedColumns.map(colId => {
-                    let label = colId;
-                    if (colId === 'count') label = 'Qtd Registros';
-                    else if (colId.startsWith('sum_')) {
-                      const orig = colId.replace('sum_', '');
-                      label = `Soma (${currentSchema.columns.find(c => c.id === orig)?.label || orig})`;
-                    } else if (colId.startsWith('avg_')) {
-                      const orig = colId.replace('avg_', '');
-                      label = `Média (${currentSchema.columns.find(c => c.id === orig)?.label || orig})`;
-                    } else {
-                      const found = currentSchema.columns.find(c => c.id === colId);
-                      if (found) label = found.label;
-                    }
+                    const label = reportColumnLabel(colId);
                     const isSorted = reportsState.sort.field === colId;
                     const sortIcon = isSorted ? (reportsState.sort.order === 'asc' ? ' ▲' : ' ▼') : '';
                     return `<th class="rep-th-sortable" data-col-id="${colId}" title="Clique para ordenar">${label}${sortIcon}</th>`;
@@ -8515,12 +8960,12 @@
                       let display = (val === null || val === undefined || val === '') ? '—' : val;
 
                       // Badges estilizados para temperaturas / status
-                      if (colId === 'TEMPERATURA_CONTRATO' || colId === 'STATUS' || colId === 'Status_Campanha') {
+                      if (display !== '—' && (colId === 'TEMPERATURA_CONTRATO' || colId === 'STATUS' || colId === 'Status_Campanha')) {
                         const badgeCls = getBadgeClass(String(val));
-                        display = `<span class="badge ${badgeCls}">${val}</span>`;
+                        display = `<span class="rep-stage ${badgeCls}"><span class="rep-stage-dot" aria-hidden="true"></span><span>${display}</span></span>`;
                       }
 
-                      return `<td>${display}</td>`;
+                      return `<td data-label="${escapeReportAttribute(reportColumnLabel(colId))}">${display}</td>`;
                     }).join('')}
                   </tr>
                 `).join('')}
@@ -8531,7 +8976,7 @@
                     ${displayedColumns.map(colId => {
                       const val = totals[colId];
                       const display = (val === null || val === undefined || val === '') ? '—' : val;
-                      return `<td><strong>${display}</strong></td>`;
+                      return `<td data-label="${escapeReportAttribute(reportColumnLabel(colId))}"><strong>${display}</strong></td>`;
                     }).join('')}
                   </tr>
                 </tfoot>
@@ -8539,11 +8984,24 @@
             </table>
           </div>
 
-          <!-- Barra de Paginação -->
+          <!-- Barra de Paginação Integrada -->
           <div class="rep-pagination-bar">
-            <div class="rep-pagination-info">
-              Exibindo <strong>${totalItems > 0 ? startIdx + 1 : 0}</strong> a <strong>${endIdx}</strong> de <strong>${totalItems}</strong> registros
-              ${reportsState.searchTerm ? `(filtrado de ${records.length} no total)` : ''}
+            <div class="rep-pagination-left">
+              <span class="rep-pagination-info">
+                Exibindo <strong>${totalItems > 0 ? startIdx + 1 : 0}</strong> a <strong>${endIdx}</strong> de <strong>${totalItems}</strong> registros
+                ${reportsState.searchTerm ? `(filtrado de ${records.length} no total)` : ''}
+              </span>
+              <div class="rep-page-size-wrapper">
+                <label for="rep-page-size-select" class="rep-page-label">Registros por página:</label>
+                <select class="rep-page-select" id="rep-page-size-select">
+                  <option value="10" ${reportsState.pageSize === 10 ? 'selected' : ''}>10</option>
+                  <option value="15" ${reportsState.pageSize === 15 ? 'selected' : ''}>15</option>
+                  <option value="25" ${reportsState.pageSize === 25 ? 'selected' : ''}>25</option>
+                  <option value="50" ${reportsState.pageSize === 50 ? 'selected' : ''}>50</option>
+                  <option value="100" ${reportsState.pageSize === 100 ? 'selected' : ''}>100</option>
+                  <option value="all" ${reportsState.pageSize === 'all' ? 'selected' : ''}>Todas</option>
+                </select>
+              </div>
             </div>
             <div class="rep-pagination-controls">
               <button type="button" class="rep-page-btn" id="rep-page-first" ${reportsState.page <= 1 ? 'disabled' : ''}>&laquo;</button>
@@ -9631,12 +10089,132 @@
         };
       }
 
-      // Link Esqueci minha senha
+      // Link Esqueci minha senha e Modal de Solicitação de Redefinição
       const linkForgot = document.getElementById('link-forgot-password');
+      const forgotModal = document.getElementById('forgot-pwd-modal');
+      const forgotForm = document.getElementById('form-forgot-pwd');
+      const inpForgotId = document.getElementById('inp-forgot-identifier');
+      const forgotAlertError = document.getElementById('forgot-alert-error');
+      const forgotErrorText = document.getElementById('forgot-error-text');
+      const forgotSuccessBox = document.getElementById('forgot-success-box');
+      const groupForgotInput = document.getElementById('group-forgot-input');
+      const btnSubmitForgot = document.getElementById('btn-submit-forgot-pwd');
+      const btnCancelForgot = document.getElementById('btn-cancel-forgot-pwd');
+      const btnCloseForgotModal = document.getElementById('btn-close-forgot-modal');
+
+      function closeForgotModal() {
+        if (forgotModal) {
+          forgotModal.style.display = 'none';
+        }
+      }
+
+      function openForgotModal() {
+        if (!forgotModal) return;
+        // Pre-preenche com o que já estiver digitado no campo de login
+        const currentId = (inpId ? inpId.value : '').trim();
+        if (inpForgotId) {
+          inpForgotId.value = currentId;
+        }
+        // Reseta estados visuais
+        if (forgotAlertError) forgotAlertError.style.display = 'none';
+        if (forgotSuccessBox) forgotSuccessBox.style.display = 'none';
+        if (groupForgotInput) groupForgotInput.style.display = 'block';
+        if (btnSubmitForgot) {
+          btnSubmitForgot.style.display = 'inline-flex';
+          btnSubmitForgot.disabled = false;
+          btnSubmitForgot.innerHTML = '<span>Enviar Solicitação</span>';
+        }
+        if (btnCancelForgot) {
+          btnCancelForgot.textContent = 'Voltar ao Login';
+        }
+
+        forgotModal.style.display = 'flex';
+        setTimeout(() => {
+          if (inpForgotId) {
+            inpForgotId.focus();
+            if (inpForgotId.value) inpForgotId.select();
+          }
+        }, 50);
+      }
+
       if (linkForgot) {
         linkForgot.onclick = (e) => {
           e.preventDefault();
-          showToast('Para redefinição de credenciais de acesso, contate o administrador em grupo.ti@opsaudebrasil.com.br.', 'info');
+          e.stopPropagation();
+          openForgotModal();
+        };
+      }
+
+      if (btnCloseForgotModal) {
+        btnCloseForgotModal.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closeForgotModal();
+        };
+      }
+
+      if (btnCancelForgot) {
+        btnCancelForgot.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closeForgotModal();
+        };
+      }
+
+      if (forgotModal) {
+        forgotModal.onclick = (e) => {
+          if (e.target === forgotModal) {
+            closeForgotModal();
+          }
+        };
+      }
+
+      if (forgotForm) {
+        forgotForm.onsubmit = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const targetIdentifier = (inpForgotId ? inpForgotId.value : '').trim();
+          if (!targetIdentifier) {
+            if (forgotAlertError && forgotErrorText) {
+              forgotErrorText.textContent = 'Por favor, informe seu usuário ou e-mail institucional.';
+              forgotAlertError.style.display = 'flex';
+            }
+            return;
+          }
+
+          if (forgotAlertError) forgotAlertError.style.display = 'none';
+
+          if (btnSubmitForgot) {
+            btnSubmitForgot.disabled = true;
+            btnSubmitForgot.innerHTML = '<span>⏳ Enviando solicitação...</span>';
+          }
+
+          try {
+            if (!window.crmSupabase || typeof window.crmSupabase.requestPasswordReset !== 'function') {
+              throw new Error('Servidor indisponível no momento. Entre em contato diretamente com o administrador.');
+            }
+
+            const res = await window.crmSupabase.requestPasswordReset(targetIdentifier);
+
+            // Mensagem uniforme sempre exibida (anti-enumeração)
+            if (groupForgotInput) groupForgotInput.style.display = 'none';
+            if (btnSubmitForgot) btnSubmitForgot.style.display = 'none';
+            if (forgotSuccessBox) forgotSuccessBox.style.display = 'block';
+            if (btnCancelForgot) btnCancelForgot.textContent = 'Fechar';
+
+            showToast('Solicitação de redefinição registrada com sucesso!', 'info');
+          } catch (err) {
+            console.error('[Forgot Password] Erro:', err);
+            if (forgotAlertError && forgotErrorText) {
+              forgotErrorText.textContent = err.message || 'Erro ao registrar solicitação. Tente novamente mais tarde.';
+              forgotAlertError.style.display = 'flex';
+            }
+            if (btnSubmitForgot) {
+              btnSubmitForgot.disabled = false;
+              btnSubmitForgot.innerHTML = '<span>Enviar Solicitação</span>';
+            }
+          }
         };
       }
 
